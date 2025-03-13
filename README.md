@@ -1,8 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app). It includes a cryptocurrency price caching service to work around CoinGecko API rate limits.
 
 ## Getting Started
 
-First, run the development server:
+This project uses Upstash Redis REST API (serverless Redis) for caching cryptocurrency prices:
+
+1. Create a free Redis database at [Upstash](https://upstash.com/)
+2. From your Upstash dashboard, find your database and get the following values:
+   - REST API URL (e.g., https://xxxx-xxxxx.upstash.io)
+   - REST API Token
+3. Update the `.env.local` file with these values:
+   ```
+   UPSTASH_REDIS_REST_URL=https://xxxx-xxxxx.upstash.io
+   UPSTASH_REDIS_REST_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+
+This implementation uses Upstash's REST API client which is optimized for serverless environments.
+
+## Automatic Price Updates
+
+This project includes automatic price updates that run every 5 minutes using Vercel Cron Jobs:
+
+1. The system automatically refreshes prices for cryptocurrencies listed in `TRACKED_CRYPTOS` array in `src/lib/priceService.ts`.
+2. To add more cryptocurrencies to track, edit this array.
+3. The cron job is configured in `vercel.json` to run every 5 minutes.
+4. For security, the cron endpoint is protected with a secret token defined in `.env.local`.
+
+When deploying to Vercel:
+1. Make sure to set the `CRON_SECRET` environment variable to a secure random string.
+2. Vercel will automatically execute the cron job based on the schedule.
+```
+
+Then, run the development server:
 
 ```bash
 npm run dev
