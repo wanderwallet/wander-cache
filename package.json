@@ -10,6 +10,7 @@
     "update-prices": "curl -X GET http://localhost:3000/api/cron/update-prices -H 'Authorization: Bearer 4a5pzwTcRXrurPTSG5DWT44eFNCdUL/hIjapWKnMoRfV+f0fWmpKylZmDTaipN+h'"
   },
   "dependencies": {
+    "@permaweb/aoconnect": "^0.0.77",
     "@upstash/redis": "^1.34.5",
     "next": "15.2.2",
     "react": "^19.0.0",

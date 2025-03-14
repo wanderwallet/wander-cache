@@ -1,4 +1,7 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app). It includes a cryptocurrency price caching service to work around CoinGecko API rate limits.
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app). It includes a cryptocurrency price caching service to work around API rate limits for:
+
+1. CoinGecko API - For general cryptocurrency prices (Arweave, etc.)
+2. Botega (via ao) - For specific token prices within the Arweave ecosystem
 
 ## Getting Started
 
@@ -20,15 +23,38 @@ This implementation uses Upstash's REST API client which is optimized for server
 
 This project includes automatic price updates that run every 5 minutes using Vercel Cron Jobs:
 
-1. The system automatically refreshes prices for cryptocurrencies listed in `TRACKED_CRYPTOS` array in `src/lib/priceService.ts`.
-2. To add more cryptocurrencies to track, edit this array.
+1. **CoinGecko prices**: The system automatically refreshes prices for cryptocurrencies listed in `TRACKED_CRYPTOS` array in `src/lib/priceService.ts`.
+2. **Botega token prices**: The system refreshes prices for tokens listed in `TRACKED_BOTEGA_TOKENS` array in `src/lib/botegaService.ts`.
 3. The cron job is configured in `vercel.json` to run every 5 minutes.
 4. For security, the cron endpoint is protected with a secret token defined in `.env.local`.
 
 When deploying to Vercel:
+
 1. Make sure to set the `CRON_SECRET` environment variable to a secure random string.
 2. Vercel will automatically execute the cron job based on the schedule.
-```
+
+## Important Implementation Notes
+
+### Botega Integration
+
+This project uses a robust approach to fetch token prices from Botega:
+
+1. **Primary method**: Using `@permaweb/aoconnect` with browser polyfills:
+
+   - Added comprehensive browser API polyfills for server environment
+
+2. **Fallback method**: Direct HTTP requests to the AO API:
+   - If the primary method fails, falls back to direct fetch requests
+   - Ensures high availability even if there are issues with the library
+
+The Botega price service:
+
+- Fetches prices for specific token IDs using the AO protocol
+- Caches them for 5 minutes in Redis
+- Automatically refreshes tracked tokens defined in `TRACKED_BOTEGA_TOKENS`
+- Provides resilient error handling with cache fallbacks
+
+````
 
 Then, run the development server:
 
@@ -40,7 +66,7 @@ yarn dev
 pnpm dev
 # or
 bun dev
-```
+````
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
