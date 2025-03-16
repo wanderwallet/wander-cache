@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     try {
       errorMessage =
         error instanceof Error ? error.message : JSON.stringify(error);
-    } catch (jsonError) {
+    } catch {
       errorMessage = String(error);
     }
 

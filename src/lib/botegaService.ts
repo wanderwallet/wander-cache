@@ -116,7 +116,9 @@ async function fetchBotegaPrices(
           ? JSON.parse(pricesTag.value)
           : pricesTag.value;
 
-      Object.entries(parsedValue).forEach(([tokenId, data]: [string, any]) => {
+      Object.entries(parsedValue).forEach((entry) => {
+        const tokenId = entry[0];
+        const data = entry[1] as { price?: number };
         prices[tokenId] = data.price || null;
       });
     } catch (e) {
@@ -175,19 +177,7 @@ export async function updateSingleBotegaPrice(
 }
 interface DryRunTag {
   name: string;
-  value: any;
+  value: string | Record<string, unknown>;
 }
 
-interface DryRunMessage {
-  Tags: DryRunTag[];
-}
-
-interface DryRunResult {
-  Messages: DryRunMessage[];
-}
-
-interface DryRunRequest {
-  process: string;
-  data: string;
-  tags: { name: string; value: string }[];
-}
+// These interfaces are defined by @permaweb/aoconnect, no need to redefine them here
