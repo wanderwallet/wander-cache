@@ -131,11 +131,10 @@ async function fetchBotegaPrices(
   }
 }
 
-// List of token IDs to automatically refresh
 export const TRACKED_BOTEGA_TOKENS = [
   "xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10",
   "0syT13r0s0tgPmIed95bJnuSqaD29HQNN8D3ElLSrsc",
-  "8rbAftv7RaPxFjFk5FGUVAVCSjGQB4JHDcb9P9wCVhQ",
+  "NG-0lVX882MG5nhARrSzyprEK6ejonHpdUmaaMPsHE8",
 ];
 
 /**
@@ -150,7 +149,6 @@ export async function updateAllBotegaPrices(): Promise<
   }
 
   try {
-    // This will now fetch and update each token individually
     const prices = await getBotegaPrices(TRACKED_BOTEGA_TOKENS);
     return prices;
   } catch (error) {
@@ -161,7 +159,7 @@ export async function updateAllBotegaPrices(): Promise<
 
 /**
  * Update price for a single Botega token
- * @param tokenId Token ID to update
+ * @param tokenId Token ID
  * @returns Price of the token or null if fetch failed
  */
 export async function updateSingleBotegaPrice(

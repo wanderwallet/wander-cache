@@ -27,15 +27,14 @@ export async function getPrice(
 ): Promise<number> {
   const cacheKey = `price:${symbol.toLowerCase()}:${currency.toLowerCase()}`;
 
-  // Try to get from cache first
+  // Cache first
   const cachedPrice = await redis.get<CachedPriceData>(cacheKey);
 
   if (cachedPrice) {
     try {
-      // Upstash Redis returns data already parsed as an object
       const { price, timestamp } = cachedPrice as CachedPriceData;
 
-      // Check if the cached price is less than 5 minutes old
+      // 5 minute stale cache
       const now = Date.now();
       if (now - timestamp < 5 * 60 * 1000) {
         return price;
@@ -54,8 +53,7 @@ export async function getPrice(
     // If fetch fails but we have a stale cache, return that instead of failing
     if (cachedPrice) {
       try {
-        // With Upstash, the data is already an object
-        return (cachedPrice as CachedPriceData).price;
+        return cachedPrice.price;
       } catch (error) {
         console.error("Error using fallback cache:", error);
         throw error;
