@@ -60,7 +60,7 @@ export async function getBotegaPrices(
               price,
               timestamp: Date.now(),
             },
-            { ex: 300 } // expire in 5 minutes
+            { ex: 86400 } // 24 hours
           );
         }
       );
@@ -179,5 +179,3 @@ interface DryRunTag {
   name: string;
   value: string | Record<string, unknown>;
 }
-
-// These interfaces are defined by @permaweb/aoconnect, no need to redefine them here
