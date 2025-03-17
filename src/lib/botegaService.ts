@@ -28,13 +28,9 @@ export async function getBotegaPrices(
     const cacheKey = `botega:price:${tokenId}`;
     const cachedPrice = await redis.get<CachedBotegaPriceData>(cacheKey);
 
-    if (
-      cachedPrice /* && Date.now() - cachedPrice.timestamp < 5 * 60 * 1000 */
-    ) {
-      // If we have a valid cache entry, use it (freshness check disabled)
+    if (cachedPrice && Date.now() - cachedPrice.timestamp < 5 * 60 * 1000) {
       result[tokenId] = cachedPrice.price;
     } else {
-      // Otherwise mark for fetching
       tokensToFetch.push(tokenId);
     }
   });
@@ -51,9 +47,9 @@ export async function getBotegaPrices(
       const cacheOperations = Object.entries(fetchedPrices).map(
         ([tokenId, price]) => {
           const cacheKey = `botega:price:${tokenId}`;
-          // Add to result
+
           result[tokenId] = price;
-          // Cache individually
+
           return redis.set(
             cacheKey,
             {
