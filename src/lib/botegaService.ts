@@ -187,10 +187,6 @@ export const TRACKED_BOTEGA_TOKENS = [
  * @returns Object with update results including cache information
  */
 export async function updateAllBotegaPrices(): Promise<BotegaPriceResponse> {
-  if (TRACKED_BOTEGA_TOKENS.length === 0) {
-    return { prices: {}, cacheInfo: {} };
-  }
-
   try {
     const priceData = await getBotegaPrices(TRACKED_BOTEGA_TOKENS, true);
     return priceData;
