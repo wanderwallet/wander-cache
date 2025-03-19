@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       updateAllPrices(),
       TRACKED_BOTEGA_TOKENS.length > 0
         ? updateAllBotegaPrices()
-        : Promise.resolve({}),
+        : Promise.resolve({ prices: {}, cacheInfo: {} }),
     ]);
 
     return NextResponse.json({

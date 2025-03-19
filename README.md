@@ -1,7 +1,10 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app). It includes a cryptocurrency price caching service to work around API rate limits for:
+# Wander Cache
 
-1. CoinGecko API - For general cryptocurrency prices (Arweave, etc.)
-2. Botega (via ao) - For specific token prices within the Arweave ecosystem
+This is a [Next.js](https://nextjs.org) project that provides a robust caching layer for cryptocurrency and token price APIs, helping to work around rate limits and provide faster data access. It includes:
+
+1. **CoinGecko API Caching** - For general cryptocurrency prices (Arweave, etc.)
+2. **Botega (via ao) Caching** - For specific token prices within the Arweave ecosystem
+3. **Health Dashboard** - UI to monitor API health and cached data freshness
 
 ## Getting Started
 
@@ -17,7 +20,29 @@ This project uses Upstash Redis REST API (serverless Redis) for caching cryptocu
    UPSTASH_REDIS_REST_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    ```
 
-This implementation uses Upstash's REST API client which is optimized for serverless environments.
+This implementation uses Upstash's REST API client which is optimized for serverless environments. The Redis client includes retry logic to handle transient failures.
+
+## Dashboard UI
+
+The main page has been replaced with a health check dashboard that:
+
+- Shows the status of CoinGecko and Botega APIs
+- Displays current cryptocurrency and token prices
+- Includes a historical price chart with selectable time periods
+- Shows cache freshness indicators for all data (fresh/stale, age in seconds)
+- Provides a form to check custom Botega token prices by ID
+
+All sections load independently, so if one API is down, the others will still display correctly.
+
+## Manual Updates
+
+You can manually update cached prices with:
+
+```bash
+npm run update-prices
+```
+
+This forces a refresh of all tracked tokens regardless of cache status.
 
 ## Automatic Price Updates
 
@@ -50,41 +75,77 @@ This project uses a robust approach to fetch token prices from Botega:
 The Botega price service:
 
 - Fetches prices for specific token IDs using the AO protocol
-- Caches them for 5 minutes in Redis
+- Caches them for 5 minutes in Redis (with 24-hour expiration)
+- Provides cache metadata (freshness, age, timestamp) in API responses
 - Automatically refreshes tracked tokens defined in `TRACKED_BOTEGA_TOKENS`
 - Provides resilient error handling with cache fallbacks
+- Supports custom token lookup via API and UI
 
-````
+## API Endpoints
 
-Then, run the development server:
+### Price API
+
+```
+GET /api/price?symbol=arweave&currency=usd
+```
+
+Returns current price with cache metadata:
+```json
+{
+  "symbol": "arweave",
+  "currency": "usd",
+  "price": 9.57,
+  "fresh": true,
+  "cachedAt": "2025-03-19T04:46:38.804Z",
+  "cacheAge": 52,
+  "timestamp": "2025-03-19T04:47:30.856Z"
+}
+```
+
+### Botega API
+
+```
+GET /api/botega/prices?tokenIds=TOKEN_ID1,TOKEN_ID2
+```
+
+Returns prices for specified tokens with cache metadata:
+```json
+{
+  "tokenIds": ["TOKEN_ID1", "TOKEN_ID2"],
+  "prices": {
+    "TOKEN_ID1": 6.95,
+    "TOKEN_ID2": 24.81
+  },
+  "cacheInfo": {
+    "TOKEN_ID1": {
+      "fresh": true,
+      "cachedAt": "2025-03-19T04:46:38.804Z",
+      "cacheAge": 52
+    },
+    "TOKEN_ID2": {
+      "fresh": true,
+      "cachedAt": "2025-03-19T04:46:38.804Z",
+      "cacheAge": 52
+    }
+  },
+  "timestamp": "2025-03-19T04:47:30.856Z"
+}
+```
+
+### Chart API
+
+```
+GET /api/chart?days=7&currency=usd
+```
+
+Returns historical price data with cache metadata.
+
+## Development
+
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-````
+```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the dashboard.

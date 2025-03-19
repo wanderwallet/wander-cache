@@ -26,11 +26,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const prices = await getBotegaPrices(tokenIdArray);
+    const priceData = await getBotegaPrices(tokenIdArray);
 
     return NextResponse.json({
       tokenIds: tokenIdArray,
-      prices,
+      prices: priceData.prices,
+      cacheInfo: priceData.cacheInfo,
       timestamp: new Date().toISOString(),
     });
   } catch (error: unknown) {

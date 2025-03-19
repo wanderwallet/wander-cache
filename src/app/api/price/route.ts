@@ -7,8 +7,16 @@ export async function GET(request: NextRequest) {
   const currency = searchParams.get("currency") || "usd";
 
   try {
-    const price = await getPrice(symbol, currency);
-    return NextResponse.json({ symbol, currency, price });
+    const priceData = await getPrice(symbol, currency);
+    return NextResponse.json({
+      symbol,
+      currency,
+      price: priceData.price,
+      fresh: priceData.fresh,
+      cachedAt: priceData.cachedAt,
+      cacheAge: priceData.cacheAge,
+      timestamp: new Date().toISOString()
+    });
   } catch (error: unknown) {
     let errorMessage;
     try {

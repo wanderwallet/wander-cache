@@ -29,12 +29,19 @@ export const TRACKED_CRYPTOS = [{ symbol: "arweave", currency: "usd" }];
  * Get cryptocurrency price with caching
  * @param symbol Cryptocurrency symbol (default: 'arweave')
  * @param currency Currency to convert to (default: 'usd')
- * @returns Price value
+ * @returns Price value and cache metadata
  */
+export interface PriceResponse {
+  price: number;
+  fresh: boolean;
+  cachedAt?: string;
+  cacheAge?: number;
+}
+
 export async function getPrice(
   symbol: string = "arweave",
   currency: string = "usd"
-): Promise<number> {
+): Promise<PriceResponse> {
   const cacheKey = `price:${symbol.toLowerCase()}:${currency.toLowerCase()}`;
 
   // Cache first
@@ -44,10 +51,18 @@ export async function getPrice(
     try {
       const { price, timestamp } = cachedPrice as CachedPriceData;
 
-      // 5 minute stale cache
+      // Calculate cache age
       const now = Date.now();
-      if (now - timestamp < 5 * 60 * 1000) {
-        return price;
+      const cacheAge = Math.floor((now - timestamp) / 1000);
+      const isFresh = cacheAge < 5 * 60; // 5 minute freshness
+
+      if (isFresh) {
+        return {
+          price,
+          fresh: true,
+          cachedAt: new Date(timestamp).toISOString(),
+          cacheAge,
+        };
       }
     } catch (error) {
       console.error("Error parsing cache:", error);
@@ -58,12 +73,26 @@ export async function getPrice(
   // If not in cache or stale, fetch from CoinGecko
   try {
     const price = await fetchPriceFromApi(symbol, currency);
-    return price;
+    return {
+      price,
+      fresh: true,
+      cachedAt: new Date().toISOString(),
+      cacheAge: 0,
+    };
   } catch (error: unknown) {
     // If fetch fails but we have a stale cache, return that instead of failing
+    // TODO: Maybe we should just throw an error and let the frontend handle it?
     if (cachedPrice) {
       try {
-        return cachedPrice.price;
+        const now = Date.now();
+        const cacheAge = Math.floor((now - cachedPrice.timestamp) / 1000);
+
+        return {
+          price: cachedPrice.price,
+          fresh: false,
+          cachedAt: new Date(cachedPrice.timestamp).toISOString(),
+          cacheAge,
+        };
       } catch (error) {
         console.error("Error using fallback cache:", error);
         throw error;

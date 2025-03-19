@@ -11,16 +11,33 @@ interface CachedBotegaPriceData {
 /**
  * Get Botega prices with caching
  * @param tokenIds Array of token IDs to get prices for
- * @returns Record of token IDs to prices
+ * @returns Record of token IDs to prices with cache metadata
  */
+export interface BotegaPriceResponse {
+  prices: Record<string, number | null>;
+  cacheInfo: Record<
+    string,
+    {
+      fresh: boolean;
+      cachedAt: string;
+      cacheAge: number;
+    }
+  >;
+}
+
 export async function getBotegaPrices(
-  tokenIds: string[]
-): Promise<Record<string, number | null>> {
+  tokenIds: string[],
+  forceRefresh: boolean = false
+): Promise<BotegaPriceResponse> {
   // Get unique token IDs
   const uniqueTokenIds = [...new Set(tokenIds)];
 
   // Check if we have each token in cache
   const result: Record<string, number | null> = {};
+  const cacheInfo: Record<
+    string,
+    { fresh: boolean; cachedAt: string; cacheAge: number }
+  > = {};
   const tokensToFetch: string[] = [];
 
   // Try to get each token from cache
@@ -28,8 +45,21 @@ export async function getBotegaPrices(
     const cacheKey = `botega:price:${tokenId}`;
     const cachedPrice = await redis.get<CachedBotegaPriceData>(cacheKey);
 
-    if (cachedPrice && Date.now() - cachedPrice.timestamp < 5 * 60 * 1000) {
+    if (cachedPrice && !forceRefresh) {
+      const now = Date.now();
+      const cacheAge = Math.floor((now - cachedPrice.timestamp) / 1000);
+      const isFresh = cacheAge < 5 * 60; // 5 minutes freshness
+
       result[tokenId] = cachedPrice.price;
+      cacheInfo[tokenId] = {
+        fresh: isFresh,
+        cachedAt: new Date(cachedPrice.timestamp).toISOString(),
+        cacheAge,
+      };
+
+      if (!isFresh) {
+        tokensToFetch.push(tokenId);
+      }
     } else {
       tokensToFetch.push(tokenId);
     }
@@ -42,6 +72,8 @@ export async function getBotegaPrices(
   if (tokensToFetch.length > 0) {
     try {
       const fetchedPrices = await fetchBotegaPrices(tokensToFetch);
+      const now = Date.now();
+      const nowISO = new Date().toISOString();
 
       // Cache each token price individually and add to result
       const cacheOperations = Object.entries(fetchedPrices).map(
@@ -49,12 +81,17 @@ export async function getBotegaPrices(
           const cacheKey = `botega:price:${tokenId}`;
 
           result[tokenId] = price;
+          cacheInfo[tokenId] = {
+            fresh: true,
+            cachedAt: nowISO,
+            cacheAge: 0,
+          };
 
           return redis.set(
             cacheKey,
             {
               price,
-              timestamp: Date.now(),
+              timestamp: now,
             },
             { ex: 86400 } // 24 hours
           );
@@ -64,15 +101,25 @@ export async function getBotegaPrices(
       // Execute all cache operations
       await Promise.all(cacheOperations);
     } catch (error) {
-      // If fetch fails, set null for all uncached tokens
+      // If fetch fails, set null for all uncached tokens that don't have a cache entry yet
       console.error("Error fetching Botega prices:", error);
       tokensToFetch.forEach((tokenId) => {
-        result[tokenId] = null;
+        if (!result[tokenId]) {
+          result[tokenId] = null;
+          cacheInfo[tokenId] = {
+            fresh: false,
+            cachedAt: new Date().toISOString(),
+            cacheAge: 0,
+          };
+        }
       });
     }
   }
 
-  return result;
+  return {
+    prices: result,
+    cacheInfo,
+  };
 }
 
 /**
@@ -137,40 +184,22 @@ export const TRACKED_BOTEGA_TOKENS = [
 
 /**
  * Update prices for all tracked Botega tokens
- * @returns Object with update results
+ * @returns Object with update results including cache information
  */
-export async function updateAllBotegaPrices(): Promise<
-  Record<string, number | null>
-> {
+export async function updateAllBotegaPrices(): Promise<BotegaPriceResponse> {
   if (TRACKED_BOTEGA_TOKENS.length === 0) {
-    return {};
+    return { prices: {}, cacheInfo: {} };
   }
 
   try {
-    const prices = await getBotegaPrices(TRACKED_BOTEGA_TOKENS);
-    return prices;
+    const priceData = await getBotegaPrices(TRACKED_BOTEGA_TOKENS, true);
+    return priceData;
   } catch (error) {
     console.error("Failed to update Botega prices:", error);
-    return {};
+    return { prices: {}, cacheInfo: {} };
   }
 }
 
-/**
- * Update price for a single Botega token
- * @param tokenId Token ID
- * @returns Price of the token or null if fetch failed
- */
-export async function updateSingleBotegaPrice(
-  tokenId: string
-): Promise<number | null> {
-  try {
-    const prices = await getBotegaPrices([tokenId]);
-    return prices[tokenId] || null;
-  } catch (error) {
-    console.error(`Failed to update Botega price for ${tokenId}:`, error);
-    return null;
-  }
-}
 interface DryRunTag {
   name: string;
   value: string | Record<string, unknown>;
