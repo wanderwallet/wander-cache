@@ -77,7 +77,7 @@ const PriceChart = ({ chartData }: ChartDataProps) => {
   const xTicks = [];
   for (let i = 0; i < numTicks; i++) {
     const dataIndex = Math.floor((i / (numTicks - 1)) * (prices.length - 1));
-    const [time, _] = prices[dataIndex];
+    const [time] = prices[dataIndex];
     const x = padding + ((time - minTime) / timeRange) * chartWidth;
     xTicks.push({ x, label: formatDate(time) });
   }
