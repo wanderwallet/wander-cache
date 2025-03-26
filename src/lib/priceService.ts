@@ -156,30 +156,66 @@ export async function fetchPriceFromApi(
 
 /**
  * Update prices for all tracked cryptocurrencies
+ * @param maxRetries Maximum number of retry attempts (default: 3)
+ * @param retryDelay Delay between retries in ms (default: 1000)
  * @returns Object with update results
  */
-export async function updateAllPrices(): Promise<Record<string, number>> {
+export async function updateAllPrices(
+  maxRetries: number = 3,
+  retryDelay: number = 1000
+): Promise<Record<string, number>> {
   const results: Record<string, number> = {};
-  const errors: string[] = [];
+  let failedUpdates: Array<{ symbol: string; currency: string }> = [
+    ...TRACKED_CRYPTOS,
+  ];
 
-  // Use Promise.allSettled to attempt all updates even if some fail
-  const updatePromises = TRACKED_CRYPTOS.map(async ({ symbol, currency }) => {
-    try {
-      const price = await fetchPriceFromApi(symbol, currency);
-      results[`${symbol}:${currency}`] = price;
-      return price;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      errors.push(`${symbol}:${currency} - ${errorMessage}`);
+  // Try up to maxRetries times
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (failedUpdates.length === 0) break; // Exit if all succeeded
+
+    // If not the first attempt, wait before retrying
+    if (attempt > 0) {
+      console.log(
+        `Retry attempt ${attempt}/${maxRetries} for ${failedUpdates.length} cryptocurrencies`
+      );
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
     }
-  });
 
-  await Promise.allSettled(updatePromises);
+    const currentBatch = [...failedUpdates];
+    failedUpdates = []; // Reset for this attempt
 
-  // If any errors occurred, log them but don't fail
-  if (errors.length > 0) {
-    console.error("Price update errors:", errors);
+    // Use Promise.allSettled to attempt all updates even if some fail
+    const updatePromises = currentBatch.map(async ({ symbol, currency }) => {
+      try {
+        const price = await fetchPriceFromApi(symbol, currency);
+        results[`${symbol}:${currency}`] = price;
+        return { success: true, symbol, currency };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error(
+          `Failed to update ${symbol}:${currency} (attempt ${attempt + 1}/${
+            maxRetries + 1
+          }): ${errorMessage}`
+        );
+        failedUpdates.push({ symbol, currency }); // Add back to failed list
+        return { success: false, symbol, currency, error: errorMessage };
+      }
+    });
+
+    await Promise.allSettled(updatePromises);
+  }
+
+  // Log final results
+  if (failedUpdates.length > 0) {
+    const failedSymbols = failedUpdates.map(
+      ({ symbol, currency }) => `${symbol}:${currency}`
+    );
+    console.error(
+      `Failed to update prices after ${
+        maxRetries + 1
+      } attempts for: ${failedSymbols.join(", ")}`
+    );
   }
 
   return results;

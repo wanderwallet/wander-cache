@@ -18,9 +18,7 @@ export interface BotegaPriceResponse {
   cacheInfo: Record<
     string,
     {
-      fresh: boolean;
-      cachedAt: string;
-      cacheAge: number;
+      cachedAt: number;
     }
   >;
 }
@@ -34,10 +32,7 @@ export async function getBotegaPrices(
 
   // Check if we have each token in cache
   const result: Record<string, number | null> = {};
-  const cacheInfo: Record<
-    string,
-    { fresh: boolean; cachedAt: string; cacheAge: number }
-  > = {};
+  const cacheInfo: Record<string, { cachedAt: number }> = {};
   const tokensToFetch: string[] = [];
 
   // Try to get each token from cache
@@ -52,9 +47,7 @@ export async function getBotegaPrices(
 
       result[tokenId] = cachedPrice.price;
       cacheInfo[tokenId] = {
-        fresh: isFresh,
-        cachedAt: new Date(cachedPrice.timestamp).toISOString(),
-        cacheAge,
+        cachedAt: cachedPrice.timestamp,
       };
 
       if (!isFresh) {
@@ -73,7 +66,6 @@ export async function getBotegaPrices(
     try {
       const fetchedPrices = await fetchBotegaPrices(tokensToFetch);
       const now = Date.now();
-      const nowISO = new Date().toISOString();
 
       // Cache each token price individually and add to result
       const cacheOperations = Object.entries(fetchedPrices).map(
@@ -82,9 +74,7 @@ export async function getBotegaPrices(
 
           result[tokenId] = price;
           cacheInfo[tokenId] = {
-            fresh: true,
-            cachedAt: nowISO,
-            cacheAge: 0,
+            cachedAt: now,
           };
 
           return redis.set(
@@ -107,9 +97,7 @@ export async function getBotegaPrices(
         if (!result[tokenId]) {
           result[tokenId] = null;
           cacheInfo[tokenId] = {
-            fresh: false,
-            cachedAt: new Date().toISOString(),
-            cacheAge: 0,
+            cachedAt: Date.now(),
           };
         }
       });
@@ -184,16 +172,56 @@ export const TRACKED_BOTEGA_TOKENS = [
 
 /**
  * Update prices for all tracked Botega tokens
+ * @param maxRetries Maximum number of retry attempts (default: 3)
+ * @param retryDelay Delay between retries in ms (default: 1000)
  * @returns Object with update results including cache information
  */
-export async function updateAllBotegaPrices(): Promise<BotegaPriceResponse> {
-  try {
-    const priceData = await getBotegaPrices(TRACKED_BOTEGA_TOKENS, true);
-    return priceData;
-  } catch (error) {
-    console.error("Failed to update Botega prices:", error);
-    return { prices: {}, cacheInfo: {} };
+export async function updateAllBotegaPrices(
+  maxRetries: number = 3,
+  retryDelay: number = 1000
+): Promise<BotegaPriceResponse> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // On first attempt or subsequent retries
+      const priceData = await getBotegaPrices(TRACKED_BOTEGA_TOKENS, true);
+
+      // Check if we got prices for all tokens
+      const missingPrices = TRACKED_BOTEGA_TOKENS.filter(
+        (tokenId) => priceData.prices[tokenId] === null
+      );
+
+      if (missingPrices.length === 0 || attempt === maxRetries) {
+        return priceData;
+      }
+
+      // If we have missing prices and retries left, wait and try again
+      console.log(
+        `Retry ${attempt + 1}/${maxRetries}: Missing prices for ${
+          missingPrices.length
+        } tokens`
+      );
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `Botega price update attempt ${attempt + 1}/${maxRetries} failed:`,
+        error
+      );
+
+      if (attempt < maxRetries) {
+        // Wait before retrying
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      }
+    }
   }
+
+  console.error(
+    "Failed to update Botega prices after all retry attempts:",
+    lastError
+  );
+  return { prices: {}, cacheInfo: {} };
 }
 
 interface DryRunTag {

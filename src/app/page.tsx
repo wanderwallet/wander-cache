@@ -13,9 +13,7 @@ interface ChartDataProps {
 }
 
 interface CacheInfo {
-  fresh: boolean;
-  cachedAt: string;
-  cacheAge: number;
+  cachedAt: number;
 }
 
 // Client component for Chart
@@ -159,6 +157,17 @@ const PriceChart = ({ chartData }: ChartDataProps) => {
   );
 };
 
+function isFresh(cachedAt: number): boolean {
+  const now = Date.now();
+  const cacheAge = Math.floor((now - cachedAt) / 1000);
+  return cacheAge < 5 * 60; // 5 minutes freshness
+}
+
+function getCacheAge(cachedAt: number): number {
+  const now = Date.now();
+  return Math.floor((now - cachedAt) / 1000);
+}
+
 // Server Component
 export default function Home() {
   // Separate state for each API section
@@ -195,9 +204,7 @@ export default function Home() {
         setArweavePrice(data.price);
         setCoinGeckoStatus(data.price ? "healthy" : "error");
         setCoinGeckoCacheInfo({
-          fresh: data.fresh,
-          cachedAt: data.cachedAt,
-          cacheAge: data.cacheAge,
+          cachedAt: new Date(data.cachedAt).getTime(),
         });
       } catch (error) {
         console.error("Error fetching CoinGecko price:", error);
@@ -328,12 +335,14 @@ export default function Home() {
                     <br />
                     <span
                       className={
-                        coinGeckoCacheInfo.fresh ? styles.fresh : styles.stale
+                        isFresh(coinGeckoCacheInfo.cachedAt)
+                          ? styles.fresh
+                          : styles.stale
                       }
                     >
-                      {coinGeckoCacheInfo.fresh ? "Fresh" : "Stale"}
+                      {isFresh(coinGeckoCacheInfo.cachedAt) ? "Fresh" : "Stale"}
                     </span>{" "}
-                    ({coinGeckoCacheInfo.cacheAge}s old)
+                    ({getCacheAge(coinGeckoCacheInfo.cachedAt)}s old)
                   </span>
                 )}
               </p>
@@ -386,12 +395,14 @@ export default function Home() {
                         <span className={styles.cacheInfo}>
                           <span
                             className={
-                              cacheInfo.fresh ? styles.fresh : styles.stale
+                              isFresh(cacheInfo.cachedAt)
+                                ? styles.fresh
+                                : styles.stale
                             }
                           >
-                            {cacheInfo.fresh ? "Fresh" : "Stale"}
+                            {isFresh(cacheInfo.cachedAt) ? "Fresh" : "Stale"}
                           </span>{" "}
-                          ({cacheInfo.cacheAge}s old)
+                          ({getCacheAge(cacheInfo.cachedAt)}s old)
                         </span>
                       </>
                     )}
