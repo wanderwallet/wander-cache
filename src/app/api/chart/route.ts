@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMarketChart, VALID_TIME_PERIODS, CHART_PERIODS } from "@/lib/priceService";
+import {
+  getMarketChart,
+  VALID_TIME_PERIODS,
+  CHART_PERIODS,
+} from "@/lib/priceService";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -27,6 +31,9 @@ export async function GET(request: NextRequest) {
       days,
       period: CHART_PERIODS[days],
       data: chartData,
+      cacheAge: chartData.cacheAge,
+      cachedAt: chartData.cachedAt,
+      fresh: chartData.fresh,
       timestamp: new Date().toISOString(),
     });
   } catch (error: unknown) {
