@@ -159,7 +159,7 @@ export async function getTokenInfoFromAo(
 
     const tokenInfo = getTokenInfoFromData(res, tokenId);
 
-    if (!save) {
+    if (save) {
       // Cache the result
       await redis.set(
         cacheKey,

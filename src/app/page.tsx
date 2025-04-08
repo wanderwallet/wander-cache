@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import styles from "./page.module.css";
 import { CHART_PERIODS } from "@/lib/priceService";
+import { TokenInfo } from "@/lib/tokenInfoService";
 
 interface ChartDataProps {
   chartData: {
@@ -190,6 +191,18 @@ export default function Home() {
   const [customTokenId, setCustomTokenId] = useState("");
   const [isLoadingCustomToken, setIsLoadingCustomToken] = useState(false);
 
+  // Token info state
+  const [tokenInfo, setTokenInfo] = useState<Record<string, TokenInfo>>({});
+  const [tokenInfoCacheInfo, setTokenInfoCacheInfo] = useState<
+    Record<string, CacheInfo>
+  >({});
+  const [isLoadingTokenInfo, setIsLoadingTokenInfo] = useState(false);
+
+  // Track which tokens have their info expanded
+  const [expandedTokens, setExpandedTokens] = useState<Record<string, boolean>>(
+    {}
+  );
+
   // Chart state
   const [chartData, setChartData] = useState(null);
   const [chartLoading, setChartLoading] = useState(true);
@@ -266,14 +279,36 @@ export default function Home() {
     fetchChartData();
   }, [chartPeriod]);
 
-  const handlePeriodChange = (period: string) => {
-    setChartPeriod(period);
+  // Fetch token information
+  const fetchTokenInfo = async (tokenId: string) => {
+    setIsLoadingTokenInfo(true);
+    try {
+      const response = await fetch(`/api/token-info?tokenId=${tokenId}`);
+      const data = await response.json();
+
+      if (data.tokenInfo && data.cachedAt) {
+        setTokenInfo((prev) => ({
+          ...prev,
+          [tokenId]: data.tokenInfo,
+        }));
+
+        setTokenInfoCacheInfo((prev) => ({
+          ...prev,
+          [tokenId]: {
+            cachedAt: new Date(data.cachedAt).getTime(),
+          },
+        }));
+      } else {
+        console.error("Invalid token info data format:", data);
+      }
+    } catch (error) {
+      console.error("Error fetching token info:", error);
+    } finally {
+      setIsLoadingTokenInfo(false);
+    }
   };
 
-  const handleCustomTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCustomTokenId(e.target.value);
-  };
-
+  // Fetch token info when custom token is submitted
   const handleCustomTokenSubmit = async (
     e: React.FormEvent<HTMLFormElement>
   ) => {
@@ -301,6 +336,9 @@ export default function Home() {
           ...prev,
           ...data.cacheInfo,
         }));
+
+        // We'll fetch token info only when the user clicks the button
+        // No need to fetch it here anymore
       } else {
         console.error("Invalid data format from API:", data);
       }
@@ -312,6 +350,30 @@ export default function Home() {
     } finally {
       setIsLoadingCustomToken(false);
     }
+  };
+
+  // Toggle token info visibility and fetch data if needed
+  const toggleTokenInfo = async (tokenId: string) => {
+    const isCurrentlyExpanded = expandedTokens[tokenId] || false;
+
+    // Toggle the expanded state
+    setExpandedTokens((prev) => ({
+      ...prev,
+      [tokenId]: !isCurrentlyExpanded,
+    }));
+
+    // If we're expanding and don't have token info yet, fetch it
+    if (!isCurrentlyExpanded && !tokenInfo[tokenId]) {
+      await fetchTokenInfo(tokenId);
+    }
+  };
+
+  const handlePeriodChange = (period: string) => {
+    setChartPeriod(period);
+  };
+
+  const handleCustomTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCustomTokenId(e.target.value);
   };
 
   return (
@@ -382,31 +444,111 @@ export default function Home() {
             <div className={styles.tokenPrices}>
               {Object.entries(botegaPrices).map(([tokenId, price]) => {
                 const cacheInfo = botegaCacheInfo?.[tokenId];
+                const tokenInfoData = tokenInfo[tokenId];
+                const tokenInfoCache = tokenInfoCacheInfo[tokenId];
+                const isExpanded = expandedTokens[tokenId] || false;
+
                 return (
-                  <p key={tokenId}>
-                    Token: {tokenId.substring(0, 8)}...
-                    {tokenId.substring(tokenId.length - 4)}
-                    <br />
-                    Price:{" "}
-                    {price !== null ? `$${Number(price).toFixed(6)}` : "N/A"}
-                    {cacheInfo && (
-                      <>
-                        <br />
-                        <span className={styles.cacheInfo}>
-                          <span
-                            className={
-                              isFresh(cacheInfo.cachedAt)
-                                ? styles.fresh
-                                : styles.stale
-                            }
-                          >
-                            {isFresh(cacheInfo.cachedAt) ? "Fresh" : "Stale"}
-                          </span>{" "}
-                          ({getCacheAge(cacheInfo.cachedAt)}s old)
-                        </span>
-                      </>
-                    )}
-                  </p>
+                  <div key={tokenId} className={styles.tokenCard}>
+                    <h3>
+                      Token: {tokenId.substring(0, 8)}...
+                      {tokenId.substring(tokenId.length - 4)}
+                    </h3>
+
+                    <p>
+                      Price:{" "}
+                      {price !== null ? `$${Number(price).toFixed(6)}` : "N/A"}
+                      {cacheInfo && (
+                        <>
+                          <br />
+                          <span className={styles.cacheInfo}>
+                            <span
+                              className={
+                                isFresh(cacheInfo.cachedAt)
+                                  ? styles.fresh
+                                  : styles.stale
+                              }
+                            >
+                              {isFresh(cacheInfo.cachedAt) ? "Fresh" : "Stale"}
+                            </span>{" "}
+                            ({getCacheAge(cacheInfo.cachedAt)}s old)
+                          </span>
+                        </>
+                      )}
+                    </p>
+
+                    <div className={styles.tokenInfoSection}>
+                      <button
+                        className={styles.toggleButton}
+                        onClick={() => toggleTokenInfo(tokenId)}
+                        disabled={isLoadingTokenInfo && isExpanded}
+                        style={{
+                          backgroundColor:
+                            isLoadingTokenInfo && isExpanded ? "gray" : "white",
+                          color:
+                            isLoadingTokenInfo && isExpanded
+                              ? "white"
+                              : "black",
+                          cursor:
+                            isLoadingTokenInfo && isExpanded
+                              ? "not-allowed"
+                              : "pointer",
+                        }}
+                      >
+                        {isExpanded ? "Hide Token Info" : "Show Token Info"}
+                      </button>
+
+                      {isExpanded && (
+                        <>
+                          {isLoadingTokenInfo && !tokenInfoData ? (
+                            <div className={styles.loadingIndicator}>
+                              Loading token information...
+                            </div>
+                          ) : tokenInfoData ? (
+                            <div className={styles.tokenInfo}>
+                              <h4>Token Information</h4>
+                              <p>
+                                Name: {tokenInfoData.Name || "N/A"}
+                                <br />
+                                Ticker: {tokenInfoData.Ticker || "N/A"}
+                                <br />
+                                Denomination:{" "}
+                                {tokenInfoData.Denomination || "N/A"}
+                                <br />
+                                Type: {tokenInfoData.type || "N/A"}
+                                {tokenInfoData.Logo && (
+                                  <>
+                                    <br />
+                                    Logo: {tokenInfoData.Logo}
+                                  </>
+                                )}
+                              </p>
+                              {tokenInfoCache && (
+                                <span className={styles.cacheInfo}>
+                                  <span
+                                    className={
+                                      isFresh(tokenInfoCache.cachedAt)
+                                        ? styles.fresh
+                                        : styles.stale
+                                    }
+                                  >
+                                    {isFresh(tokenInfoCache.cachedAt)
+                                      ? "Fresh"
+                                      : "Stale"}
+                                  </span>{" "}
+                                  ({getCacheAge(tokenInfoCache.cachedAt)}s old)
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className={styles.errorMessage}>
+                              Failed to load token information
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>
