@@ -193,9 +193,6 @@ export default function Home() {
 
   // Token info state
   const [tokenInfo, setTokenInfo] = useState<Record<string, TokenInfo>>({});
-  const [tokenInfoCacheInfo, setTokenInfoCacheInfo] = useState<
-    Record<string, CacheInfo>
-  >({});
   const [isLoadingTokenInfo, setIsLoadingTokenInfo] = useState(false);
 
   // Track which tokens have their info expanded
@@ -290,13 +287,6 @@ export default function Home() {
         setTokenInfo((prev) => ({
           ...prev,
           [tokenId]: data.tokenInfo,
-        }));
-
-        setTokenInfoCacheInfo((prev) => ({
-          ...prev,
-          [tokenId]: {
-            cachedAt: new Date(data.cachedAt).getTime(),
-          },
         }));
       } else {
         console.error("Invalid token info data format:", data);
@@ -445,7 +435,6 @@ export default function Home() {
               {Object.entries(botegaPrices).map(([tokenId, price]) => {
                 const cacheInfo = botegaCacheInfo?.[tokenId];
                 const tokenInfoData = tokenInfo[tokenId];
-                const tokenInfoCache = tokenInfoCacheInfo[tokenId];
                 const isExpanded = expandedTokens[tokenId] || false;
 
                 return (
@@ -523,22 +512,6 @@ export default function Home() {
                                   </>
                                 )}
                               </p>
-                              {tokenInfoCache && (
-                                <span className={styles.cacheInfo}>
-                                  <span
-                                    className={
-                                      isFresh(tokenInfoCache.cachedAt)
-                                        ? styles.fresh
-                                        : styles.stale
-                                    }
-                                  >
-                                    {isFresh(tokenInfoCache.cachedAt)
-                                      ? "Fresh"
-                                      : "Stale"}
-                                  </span>{" "}
-                                  ({getCacheAge(tokenInfoCache.cachedAt)}s old)
-                                </span>
-                              )}
                             </div>
                           ) : (
                             <div className={styles.errorMessage}>
