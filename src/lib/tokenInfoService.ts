@@ -1,5 +1,7 @@
 import { dryrun } from "@permaweb/aoconnect";
 import { redis } from "./redis";
+import pLimit from "p-limit";
+import pRetry from "p-retry";
 
 export interface TokenInfo {
   Name?: string;
@@ -185,13 +187,15 @@ interface UpdateResult {
  */
 export async function updateAllTokenInfos(
   maxRetries: number = 3,
-  retryDelay: number = 1000
+  retryDelay: number = 1000,
+  concurrency: number = 10
 ): Promise<Record<string, TokenInfo>> {
   const results: Record<string, TokenInfo> = {};
-  let failedUpdates: string[] = [];
+  const limit = pLimit(concurrency);
 
   try {
     let cursor = 0;
+    const failedUpdates: string[] = [];
 
     // Process tokens in batches
     while (true) {
@@ -207,21 +211,30 @@ export async function updateAllTokenInfos(
         continue;
       }
 
-      // Process batch with progress tracking
+      // Process batch with concurrency control
       const batchResults = await Promise.allSettled(
-        batchTokenIds.map(async (tokenId) => {
-          try {
-            const tokenInfo = await getTokenInfoFromAo(tokenId, false);
-
-            return { success: true, tokenId, tokenInfo } as UpdateResult;
-          } catch (error) {
-            return {
-              success: false,
-              tokenId,
-              error: error instanceof Error ? error.message : String(error),
-            } as UpdateResult;
-          }
-        })
+        batchTokenIds.map((tokenId) =>
+          limit(async () => {
+            try {
+              const tokenInfo = await pRetry(
+                () => getTokenInfoFromAo(tokenId, false),
+                {
+                  retries: maxRetries,
+                  factor: 2,
+                  minTimeout: retryDelay,
+                  maxTimeout: retryDelay * 3,
+                }
+              );
+              return { success: true, tokenId, tokenInfo } as UpdateResult;
+            } catch (error) {
+              return {
+                success: false,
+                tokenId,
+                error: error instanceof Error ? error.message : String(error),
+              } as UpdateResult;
+            }
+          })
+        )
       );
 
       // Process batch results
@@ -233,7 +246,6 @@ export async function updateAllTokenInfos(
           const { success, tokenId, tokenInfo, error } = result.value;
           if (success && tokenInfo) {
             results[tokenId] = tokenInfo;
-            // Update cache in pipeline
             pipeline.set(
               `tokenInfo:${tokenId}`,
               { tokenInfo, timestamp: Date.now() },
@@ -257,78 +269,7 @@ export async function updateAllTokenInfos(
 
       failedUpdates.push(...batchFailedUpdates);
 
-      // Add delay between batches to prevent rate limiting
-      if (cursor !== 0) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-
       if (cursor === 0) break;
-    }
-
-    // Retry failed updates with exponential backoff
-    if (failedUpdates.length > 0) {
-      for (
-        let attempt = 0;
-        attempt < maxRetries && failedUpdates.length > 0;
-        attempt++
-      ) {
-        const delay = retryDelay * Math.pow(2, attempt);
-        console.log(
-          `Retry attempt ${attempt + 1}/${maxRetries} for ${
-            failedUpdates.length
-          } tokens (delay: ${delay}ms)`
-        );
-
-        await new Promise((resolve) => setTimeout(resolve, delay));
-
-        const retryResults = await Promise.allSettled(
-          failedUpdates.map(async (tokenId) => {
-            try {
-              const tokenInfo = await getTokenInfoFromAo(tokenId);
-              return { success: true, tokenId, tokenInfo } as UpdateResult;
-            } catch (error) {
-              return {
-                success: false,
-                tokenId,
-                error: error instanceof Error ? error.message : String(error),
-              } as UpdateResult;
-            }
-          })
-        );
-
-        const newFailedUpdates: string[] = [];
-        const retryPipeline = redis.pipeline();
-
-        retryResults.forEach((result) => {
-          if (result.status === "fulfilled") {
-            const { success, tokenId, tokenInfo, error } = result.value;
-            if (success && tokenInfo) {
-              results[tokenId] = tokenInfo;
-              retryPipeline.set(
-                `tokenInfo:${tokenId}`,
-                { tokenInfo, timestamp: Date.now() },
-                { ex: CACHE_EXPIRY }
-              );
-            } else {
-              newFailedUpdates.push(tokenId);
-              console.error(
-                `Failed to update token info for ${tokenId} (retry ${
-                  attempt + 1
-                }): ${error}`
-              );
-            }
-          }
-        });
-
-        // Execute pipeline for retry cache updates
-        try {
-          await retryPipeline.exec();
-        } catch (error) {
-          console.error("Error updating cache during retry:", error);
-        }
-
-        failedUpdates = newFailedUpdates;
-      }
     }
 
     // Log final results
