@@ -1,3 +1,4 @@
+import "./polyfill";
 import { dryrun } from "@permaweb/aoconnect";
 import { redis } from "./redis";
 import pLimit from "p-limit";
