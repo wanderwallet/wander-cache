@@ -13,6 +13,8 @@
     "@permaweb/aoconnect": "^0.0.77",
     "@upstash/redis": "^1.34.5",
     "next": "15.2.2",
+    "p-limit": "^6.2.0",
+    "p-retry": "^6.2.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

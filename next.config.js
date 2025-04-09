@@ -16,7 +16,7 @@ const nextConfig = {
           },
           {
             key: "Access-Control-Allow-Headers",
-            value: "Accept, Content-Length, Content-Type",
+            value: "Accept, Content-Length, Content-Type, Cache-Control",
           },
         ],
       },
