@@ -1,6 +1,6 @@
 import "./polyfill";
+import { aoInstance } from "./aoconnect";
 import { redis } from "./redis";
-import { dryrun } from "@permaweb/aoconnect";
 
 // Define the cached price data structure
 interface CachedBotegaPriceData {
@@ -119,7 +119,7 @@ async function fetchBotegaPrices(
   tokenIds: string[]
 ): Promise<Record<string, number | null>> {
   try {
-    const res = await dryrun({
+    const res = await aoInstance.dryrun({
       process: "Meb6GwY5I9QN77F0c5Ku2GpCFxtYyG1mfJus2GWYtII",
       data: "",
       tags: [
