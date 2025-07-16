@@ -193,7 +193,7 @@ export async function getOrders(
   const accessToken = await getValidAccessToken(apiKey);
 
   const now = new Date();
-  const startDate = new Date(now.getTime() - 3000 * 60 * 60 * 24);
+  const startDate = new Date(now.getTime() - 60 * 60 * 24 * 1000);
   const startDateString = startDate.toISOString().split("T")[0];
   const endDateString = now.toISOString().split("T")[0];
 
