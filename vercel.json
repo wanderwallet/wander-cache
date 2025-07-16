@@ -5,7 +5,7 @@
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/cron/transak-fee-savings",
+      "path": "/api/cron/process-transak-savings",
       "schedule": "*/30 * * * *"
     }
   ]
