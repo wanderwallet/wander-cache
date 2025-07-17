@@ -6,27 +6,46 @@ import { dryrun } from "@permaweb/aoconnect";
 const AO_PROCESS_ID = "0syT13r0s0tgPmIed95bJnuSqaD29HQNN8D3ElLSrsc";
 const DEXI_API_KEY = process.env.DEXI_API_KEY as string;
 
-// Define the cached price data structure
+interface DryRunTag {
+  name: string;
+  value: string | Record<string, unknown>;
+}
+
 interface CachedBotegaPriceData {
   price: number | null;
   timestamp: number;
 }
+
+interface PriceSource {
+  (tokenIds: string[]): Promise<[boolean, Record<string, number | null>]>;
+}
+
+type PermaswapApiResponse = Array<{
+  address: string;
+  process: string;
+  price: number;
+}>;
+
+interface DexiApiResponse {
+  Prices: Record<string, { price?: number }>;
+}
+
+export interface BotegaPriceResponse {
+  prices: Record<string, number | null>;
+  cacheInfo: Record<string, { cachedAt: number }>;
+}
+
+export const TRACKED_BOTEGA_TOKENS = [
+  "xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10",
+  AO_PROCESS_ID,
+  "NG-0lVX882MG5nhARrSzyprEK6ejonHpdUmaaMPsHE8",
+];
 
 /**
  * Get Botega prices with caching
  * @param tokenIds Array of token IDs to get prices for
  * @returns Record of token IDs to prices with cache metadata
  */
-export interface BotegaPriceResponse {
-  prices: Record<string, number | null>;
-  cacheInfo: Record<
-    string,
-    {
-      cachedAt: number;
-    }
-  >;
-}
-
 export async function getBotegaPrices(
   tokenIds: string[],
   forceRefresh: boolean = false
@@ -50,9 +69,7 @@ export async function getBotegaPrices(
       const isFresh = cacheAge < 5 * 60; // 5 minutes freshness
 
       result[tokenId] = cachedPrice.price;
-      cacheInfo[tokenId] = {
-        cachedAt: cachedPrice.timestamp,
-      };
+      cacheInfo[tokenId] = { cachedAt: cachedPrice.timestamp };
 
       if (!isFresh) {
         tokensToFetch.push(tokenId);
@@ -63,7 +80,7 @@ export async function getBotegaPrices(
   });
 
   // Wait for all cache lookups to complete
-  await Promise.all(cachePromises);
+  await Promise.allSettled(cachePromises);
 
   // If we have tokens that need fetching, get them from Botega
   if (tokensToFetch.length > 0) {
@@ -77,9 +94,7 @@ export async function getBotegaPrices(
           const cacheKey = `botega:price:${tokenId}`;
 
           result[tokenId] = price;
-          cacheInfo[tokenId] = {
-            cachedAt: now,
-          };
+          cacheInfo[tokenId] = { cachedAt: now };
 
           return redis.set(
             cacheKey,
@@ -100,18 +115,13 @@ export async function getBotegaPrices(
       tokensToFetch.forEach((tokenId) => {
         if (!result[tokenId]) {
           result[tokenId] = null;
-          cacheInfo[tokenId] = {
-            cachedAt: Date.now(),
-          };
+          cacheInfo[tokenId] = { cachedAt: Date.now() };
         }
       });
     }
   }
 
-  return {
-    prices: result,
-    cacheInfo,
-  };
+  return { prices: result, cacheInfo };
 }
 
 /**
@@ -127,34 +137,27 @@ async function fetchTokenPricesFromBotegaProcess(
       process: "Meb6GwY5I9QN77F0c5Ku2GpCFxtYyG1mfJus2GWYtII",
       data: "",
       tags: [
-        {
-          name: "Action",
-          value: "Get-Price-For-Tokens",
-        },
-        {
-          name: "Tokens",
-          value: JSON.stringify(tokenIds),
-        },
+        { name: "Action", value: "Get-Price-For-Tokens" },
+        { name: "Tokens", value: JSON.stringify(tokenIds) },
       ],
     });
 
-    const pricesTag = res.Messages[0].Tags.find(
+    const pricesTag = res.Messages[0]?.Tags.find(
       (tag: DryRunTag) => tag.name === "Prices"
     );
+
     if (!pricesTag?.value) {
       return [false, Object.fromEntries(tokenIds.map((id) => [id, null]))];
     }
 
-    const prices: Record<string, number | null> = {};
-
-    const parsedValue =
+    const parsedValue = (
       typeof pricesTag.value === "string"
         ? JSON.parse(pricesTag.value)
-        : pricesTag.value;
+        : pricesTag.value
+    ) as DexiApiResponse;
 
-    Object.entries(parsedValue).forEach((entry) => {
-      const tokenId = entry[0];
-      const data = entry[1] as { price?: number };
+    const prices: Record<string, number | null> = {};
+    Object.entries(parsedValue).forEach(([tokenId, data]) => {
       prices[tokenId] = data.price || null;
     });
 
@@ -177,40 +180,25 @@ async function fetchTokenPricesFromDexiApi(
     const response = await fetch(
       "https://kzmzniagsfcfnhgsjkpv.supabase.co/functions/v1/hopper",
       {
+        method: "POST",
         headers: {
-          accept: "*/*",
-          "accept-language": "en-US,en;q=0.6",
+          "content-type": "application/json",
           apikey: DEXI_API_KEY,
           authorization: `Bearer ${DEXI_API_KEY}`,
-          "content-type": "application/json",
-          priority: "u=1, i",
-          "sec-ch-ua":
-            '"Not)A;Brand";v="8", "Chromium";v="138", "Brave";v="138"',
-          "sec-ch-ua-mobile": "?0",
-          "sec-ch-ua-platform": '"macOS"',
-          "sec-fetch-dest": "empty",
-          "sec-fetch-mode": "cors",
-          "sec-fetch-site": "cross-site",
-          "sec-gpc": "1",
-          "x-client-info": "supabase-js-web/2.50.0",
-          Referer: "https://dexi.defi.ao/",
         },
         body: `{"batch": ${JSON.stringify(tokenIds)},"priceOnly":true}`,
-        method: "POST",
       }
     );
 
     if (!response.ok) {
-      throw new Error("Failed to fetch from Dexi API");
+      throw new Error(`Dexi API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as DexiApiResponse;
     const prices: Record<string, number | null> = {};
 
-    Object.entries(data.Prices).forEach((entry) => {
-      const tokenId = entry[0];
-      const data = entry[1] as { price?: number };
-      prices[tokenId] = data.price || null;
+    Object.entries(data.Prices).forEach(([tokenId, tokenData]) => {
+      prices[tokenId] = tokenData?.price || null;
     });
 
     return [true, prices];
@@ -232,39 +220,23 @@ async function fetchTokenPricesFromPermaswapApi(
     const response = await fetch(
       "https://api-ffpscan.permaswap.network/tokenList",
       {
-        headers: {
-          accept: "application/json, text/plain, */*",
-          "accept-language": "en-US,en;q=0.9",
-          priority: "u=1, i",
-          "sec-ch-ua":
-            '"Not)A;Brand";v="8", "Chromium";v="138", "Brave";v="138"',
-          "sec-ch-ua-mobile": "?0",
-          "sec-ch-ua-platform": '"macOS"',
-          "sec-fetch-dest": "empty",
-          "sec-fetch-mode": "cors",
-          "sec-fetch-site": "same-site",
-          "sec-gpc": "1",
-          Referer: "https://www.permaswap.network/",
-        },
-        body: null,
         method: "GET",
+        headers: { accept: "application/json" },
       }
     );
 
     if (!response.ok) {
-      throw new Error("Failed to fetch from Permaswap API");
+      throw new Error(`Permaswap API error: ${response.status}`);
     }
 
-    const tokens = (await response.json()) as {
-      address: string;
-      process: string;
-      price: number;
-    }[];
+    const tokens = (await response.json()) as PermaswapApiResponse;
 
     const prices: Record<string, number | null> = {};
+    const tokenSet = new Set(tokenIds);
+
     tokens.forEach((token) => {
-      if (tokenIds.includes(token.address)) {
-        prices[token.process] = token.price || null;
+      if (tokenSet.has(token.process)) {
+        prices[token.process] = +token?.price || null;
       }
     });
 
@@ -276,60 +248,54 @@ async function fetchTokenPricesFromPermaswapApi(
 }
 
 /**
- * Fetch Token prices from the API
+ * Fetch Token prices from multiple sources with fallback
  * @param tokenIds Array of token IDs to get prices for
  * @returns Record of token IDs to prices
  */
 async function fetchBotegaPrices(
   tokenIds: string[]
 ): Promise<Record<string, number | null>> {
-  try {
-    const priceSources = [
-      fetchTokenPricesFromDexiApi,
-      fetchTokenPricesFromPermaswapApi,
-      fetchTokenPricesFromBotegaProcess,
-    ];
+  const priceSources: PriceSource[] = [
+    fetchTokenPricesFromDexiApi,
+    fetchTokenPricesFromPermaswapApi,
+    fetchTokenPricesFromBotegaProcess,
+  ];
 
-    for (const fetchPrices of priceSources) {
+  for (const fetchPrices of priceSources) {
+    try {
       const [success, prices] = await fetchPrices(tokenIds);
       if (success) {
         if (tokenIds.includes(AO_PROCESS_ID) && !prices[AO_PROCESS_ID]) {
           const aoPrice = await fetchAOPrice();
-          prices[AO_PROCESS_ID] = aoPrice || null;
+          if (aoPrice) prices[AO_PROCESS_ID] = aoPrice;
         }
         return prices;
       }
-    }
-
-    // Return null prices if all sources fail
-    return Object.fromEntries(tokenIds.map((id) => [id, null]));
-  } catch (error) {
-    console.error("Error fetching Botega prices:", error);
-    return Object.fromEntries(tokenIds.map((id) => [id, null]));
+    } catch {}
   }
+
+  // All sources failed - return null prices
+  return Object.fromEntries(tokenIds.map((id) => [id, null]));
 }
 
 /**
- * Fetch AO price from the API
+ * Fetch AO price from multiple sources
  * @returns Price value
  */
 async function fetchAOPrice(): Promise<number | null> {
-  try {
-    const priceSources = [
-      fetchAOPriceFromCoingeckoApi,
-      fetchAOPriceFromCoinmarketcapApi,
-    ];
+  const priceSources = [
+    fetchAOPriceFromCoingeckoApi,
+    fetchAOPriceFromCoinmarketcapApi,
+  ];
 
-    for (const fetchPrice of priceSources) {
+  for (const fetchPrice of priceSources) {
+    try {
       const price = await fetchPrice();
       if (price) return price;
-    }
-
-    return null;
-  } catch (error) {
-    console.error("Error fetching AO price:", error);
-    return null;
+    } catch {}
   }
+
+  return null;
 }
 
 /**
@@ -338,8 +304,7 @@ async function fetchAOPrice(): Promise<number | null> {
  */
 async function fetchAOPriceFromCoingeckoApi(): Promise<number | null> {
   try {
-    const price = await fetchPriceFromCoingeckoApi("AO-COMPUTER", "usd");
-    return price;
+    return await fetchPriceFromCoingeckoApi("AO-COMPUTER", "usd");
   } catch (error) {
     console.error("Error fetching AO price from Coingecko API:", error);
     return null;
@@ -364,23 +329,16 @@ async function fetchAOPriceFromCoinmarketcapApi(): Promise<number | null> {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to fetch from Coinmarketcap API");
+      throw new Error(`CoinMarketCap API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const price = data.data[SYMBOL].quote.USD.price;
-    return price;
+    return data.data[SYMBOL].quote.USD.price;
   } catch (error) {
     console.error("Error fetching AO price from Coinmarketcap API:", error);
     return null;
   }
 }
-
-export const TRACKED_BOTEGA_TOKENS = [
-  "xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10",
-  AO_PROCESS_ID,
-  "NG-0lVX882MG5nhARrSzyprEK6ejonHpdUmaaMPsHE8",
-];
 
 /**
  * Update prices for all tracked Botega tokens
@@ -434,9 +392,4 @@ export async function updateAllBotegaPrices(
     lastError
   );
   return { prices: {}, cacheInfo: {} };
-}
-
-interface DryRunTag {
-  name: string;
-  value: string | Record<string, unknown>;
 }
