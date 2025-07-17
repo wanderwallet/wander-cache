@@ -1,15 +1,9 @@
 import "./polyfill";
 import { fetchPriceFromCoingeckoApi } from "./priceService";
 import { redis } from "./redis";
-import { dryrun } from "@permaweb/aoconnect";
 
 const AO_PROCESS_ID = "0syT13r0s0tgPmIed95bJnuSqaD29HQNN8D3ElLSrsc";
 const DEXI_API_KEY = process.env.DEXI_API_KEY as string;
-
-interface DryRunTag {
-  name: string;
-  value: string | Record<string, unknown>;
-}
 
 interface CachedBotegaPriceData {
   price: number | null;
@@ -125,50 +119,6 @@ export async function getBotegaPrices(
 }
 
 /**
- * Fetch Token prices from the Botega Process
- * @param tokenIds Array of token IDs to get prices for
- * @returns Record of token IDs to prices
- */
-async function fetchTokenPricesFromBotegaProcess(
-  tokenIds: string[]
-): Promise<[boolean, Record<string, number | null>]> {
-  try {
-    const res = await dryrun({
-      process: "Meb6GwY5I9QN77F0c5Ku2GpCFxtYyG1mfJus2GWYtII",
-      data: "",
-      tags: [
-        { name: "Action", value: "Get-Price-For-Tokens" },
-        { name: "Tokens", value: JSON.stringify(tokenIds) },
-      ],
-    });
-
-    const pricesTag = res.Messages[0]?.Tags.find(
-      (tag: DryRunTag) => tag.name === "Prices"
-    );
-
-    if (!pricesTag?.value) {
-      return [false, Object.fromEntries(tokenIds.map((id) => [id, null]))];
-    }
-
-    const parsedValue = (
-      typeof pricesTag.value === "string"
-        ? JSON.parse(pricesTag.value)
-        : pricesTag.value
-    ) as DexiApiResponse;
-
-    const prices: Record<string, number | null> = {};
-    Object.entries(parsedValue).forEach(([tokenId, data]) => {
-      prices[tokenId] = data.price || null;
-    });
-
-    return [true, prices];
-  } catch (error) {
-    console.error("Error fetching Botega prices:", error);
-    return [false, Object.fromEntries(tokenIds.map((id) => [id, null]))];
-  }
-}
-
-/**
  * Fetch Token prices from the Dexi API
  * @param tokenIds Array of token IDs to get prices for
  * @returns Record of token IDs to prices
@@ -258,7 +208,6 @@ async function fetchBotegaPrices(
   const priceSources: PriceSource[] = [
     fetchTokenPricesFromDexiApi,
     fetchTokenPricesFromPermaswapApi,
-    fetchTokenPricesFromBotegaProcess,
   ];
 
   for (const fetchPrices of priceSources) {
