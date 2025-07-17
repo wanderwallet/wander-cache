@@ -3,7 +3,7 @@ import { fetchPriceFromCoingeckoApi } from "./priceService";
 import { redis } from "./redis";
 
 const AO_PROCESS_ID = "0syT13r0s0tgPmIed95bJnuSqaD29HQNN8D3ElLSrsc";
-const DEXI_API_KEY = process.env.DEXI_API_KEY as string;
+const BOTEGA_API_KEY = process.env.BOTEGA_API_KEY as string;
 
 interface CachedBotegaPriceData {
   price: number | null;
@@ -20,7 +20,7 @@ type PermaswapApiResponse = Array<{
   price: number;
 }>;
 
-interface DexiApiResponse {
+interface BotegaApiResponse {
   Prices: Record<string, { price?: number }>;
 }
 
@@ -119,11 +119,11 @@ export async function getBotegaPrices(
 }
 
 /**
- * Fetch Token prices from the Dexi API
+ * Fetch Token prices from the Botega API
  * @param tokenIds Array of token IDs to get prices for
  * @returns Record of token IDs to prices
  */
-async function fetchTokenPricesFromDexiApi(
+async function fetchTokenPricesFromBotegaApi(
   tokenIds: string[]
 ): Promise<[boolean, Record<string, number | null>]> {
   try {
@@ -133,18 +133,18 @@ async function fetchTokenPricesFromDexiApi(
         method: "POST",
         headers: {
           "content-type": "application/json",
-          apikey: DEXI_API_KEY,
-          authorization: `Bearer ${DEXI_API_KEY}`,
+          apikey: BOTEGA_API_KEY,
+          authorization: `Bearer ${BOTEGA_API_KEY}`,
         },
         body: `{"batch": ${JSON.stringify(tokenIds)},"priceOnly":true}`,
       }
     );
 
     if (!response.ok) {
-      throw new Error(`Dexi API error: ${response.status}`);
+      throw new Error(`Botega API error: ${response.status}`);
     }
 
-    const data = (await response.json()) as DexiApiResponse;
+    const data = (await response.json()) as BotegaApiResponse;
     const prices: Record<string, number | null> = {};
 
     Object.entries(data.Prices).forEach(([tokenId, tokenData]) => {
@@ -153,7 +153,7 @@ async function fetchTokenPricesFromDexiApi(
 
     return [true, prices];
   } catch (error) {
-    console.error("Error fetching Botega prices from Dexi API:", error);
+    console.error("Error fetching Botega prices from Botega API:", error);
     return [false, Object.fromEntries(tokenIds.map((id) => [id, null]))];
   }
 }
@@ -206,7 +206,7 @@ async function fetchBotegaPrices(
   tokenIds: string[]
 ): Promise<Record<string, number | null>> {
   const priceSources: PriceSource[] = [
-    fetchTokenPricesFromDexiApi,
+    fetchTokenPricesFromBotegaApi,
     fetchTokenPricesFromPermaswapApi,
   ];
 
