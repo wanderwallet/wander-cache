@@ -1,0 +1,16 @@
+diff --git a/node_modules/@permaweb/aoconnect/dist/index.js b/node_modules/@permaweb/aoconnect/dist/index.js
+index 28f6e29..f0c2734 100644
+--- a/node_modules/@permaweb/aoconnect/dist/index.js
++++ b/node_modules/@permaweb/aoconnect/dist/index.js
+@@ -48,10 +48,8 @@ import { parseItem, serializeList } from "structured-headers";
+ // src/lib/data-item.js
+ import { Buffer as BufferShim } from "buffer/index.js";
+ import base64url from "base64url";
+-import * as ArBundles from "@dha-team/arbundles";
++import {createData, DataItem, SIG_CONFIG} from "@dha-team/arbundles";
+ if (!globalThis.Buffer) globalThis.Buffer = BufferShim;
+-var pkg = ArBundles.default ? ArBundles.default : ArBundles;
+-var { createData, DataItem, SIG_CONFIG } = pkg;
+ function createDataItemBytes(data, signer, opts) {
+   const signerMeta = SIG_CONFIG[signer.type];
+   if (!signerMeta) throw new Error(`Metadata for signature type ${signer.type} not found`);
