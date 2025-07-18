@@ -72,7 +72,7 @@ export async function getPrice(
 
   // If not in cache or stale, fetch from CoinGecko
   try {
-    const price = await fetchPriceFromApi(symbol, currency);
+    const price = await fetchPriceFromCoingeckoApi(symbol, currency);
     return {
       price,
       fresh: true,
@@ -111,12 +111,10 @@ export async function getPrice(
  * @param currency Currency to convert to
  * @returns Price value
  */
-export async function fetchPriceFromApi(
+export async function fetchPriceFromCoingeckoApi(
   symbol: string,
   currency: string
 ): Promise<number> {
-  const cacheKey = `price:${symbol.toLowerCase()}:${currency.toLowerCase()}`;
-
   const response = await fetch(
     `https://api.coingecko.com/api/v3/simple/price?ids=${symbol.toLowerCase()}&vs_currencies=${currency.toLowerCase()}`
   );
@@ -141,15 +139,19 @@ export async function fetchPriceFromApi(
 
   const price = data[symbol.toLowerCase()][currency.toLowerCase()];
 
-  // Cache the result with timestamp
-  await redis.set(
-    cacheKey,
-    JSON.stringify({
-      price,
-      timestamp: Date.now(),
-    }),
-    { ex: 86400 } // 24 hours
-  );
+  if (symbol === "arweave") {
+    const cacheKey = `price:${symbol.toLowerCase()}:${currency.toLowerCase()}`;
+
+    // Cache the result with timestamp
+    await redis.set(
+      cacheKey,
+      JSON.stringify({
+        price,
+        timestamp: Date.now(),
+      }),
+      { ex: 86400 } // 24 hours
+    );
+  }
 
   return price;
 }
@@ -187,7 +189,7 @@ export async function updateAllPrices(
     // Use Promise.allSettled to attempt all updates even if some fail
     const updatePromises = currentBatch.map(async ({ symbol, currency }) => {
       try {
-        const price = await fetchPriceFromApi(symbol, currency);
+        const price = await fetchPriceFromCoingeckoApi(symbol, currency);
         results[`${symbol}:${currency}`] = price;
         return { success: true, symbol, currency };
       } catch (error) {
