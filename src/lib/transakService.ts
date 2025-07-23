@@ -65,7 +65,7 @@ function anonymizeUUID(uuid: string): string {
     .update(SECRET_SALT + uuid)
     .digest("base64url");
 
-  return hash.slice(0, uuid.length);
+  return hash;
 }
 
 /**
