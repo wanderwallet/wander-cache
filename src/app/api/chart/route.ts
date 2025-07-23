@@ -7,6 +7,7 @@ import {
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
+  const symbol = searchParams.get("symbol") || "arweave";
   const currency = searchParams.get("currency") || "usd";
   const days = searchParams.get("days") || "7";
 
@@ -23,10 +24,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const chartData = await getMarketChart(currency, days);
+    const chartData = await getMarketChart(symbol, currency, days);
 
     return NextResponse.json({
-      symbol: "arweave",
+      symbol,
       currency,
       days,
       period: CHART_PERIODS[days],
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: `Failed to get Arweave market chart data: ${errorMessage}` },
+      { error: `Failed to get ${symbol} market chart data: ${errorMessage}` },
       { status: 500 }
     );
   }
