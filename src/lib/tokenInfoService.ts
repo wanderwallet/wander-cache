@@ -1,5 +1,5 @@
 import "./polyfill";
-import { dryrun } from "@permaweb/aoconnect";
+import { aoInstance } from "./aoconnect";
 import { redis } from "./redis";
 import pLimit from "p-limit";
 import pRetry from "p-retry";
@@ -153,7 +153,7 @@ export async function getTokenInfoFromAo(
 
   try {
     // query ao
-    const res = await dryrun({
+    const res = await aoInstance.dryrun({
       process: tokenId,
       tags: [{ name: "Action", value: "Info" }],
     });

@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  modularizeImports: {
+    "@permaweb/aoconnect": {
+      transform: "@permaweb/aoconnect/node",
+    },
+  },
   async headers() {
     return [
       {
