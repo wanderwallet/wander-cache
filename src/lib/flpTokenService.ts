@@ -39,6 +39,7 @@ const testTokenFlpIds = new Set([
   "FyQ9uMx1XevItG1kE65BMvbbqcvdOGJrC_nb-PPIawk",
   "xswbZRtkjQQ8D1h6tx503iLaAxxPLWP10J2TvgbRZXk",
   "NQy9H6oAE-m55BheXbGu70nEWiiGMsL8lM9YsNJ8gD4",
+  "gkcnuAZeFeqPvFvNABFKGRKGE_AsmA0T3I1_jOFF0MU",
 ]);
 
 const manualClaimableFlpIds = new Set([
