@@ -62,7 +62,7 @@ const CACHE_EXPIRY = 86400; // 24 hours in seconds
 
 // Process IDs for AO interactions
 const WNDR_PROCESS_ID = "7GoQfmSOct_aUOWKM4xbKGg6DzAmOgdKwg8Kf-CbHm4";
-const AO_DELEGATION_TRACKER_PROCESS_ID =
+const FLP_AO_DELEGATION_TRACKER_PROCESS_ID =
   "NRP0xtzeV9MHgwLmgD254erUB7mUjMBhBkYkNYkbNEo";
 const FLP_REGISTRY_PROCESS_ID = "It-_AKlEfARBmJdbJew1nG9_hIaZt0t20wQc28mFGBE";
 
@@ -74,7 +74,7 @@ async function getTotalAODelegationByProject(): Promise<DelegationRecord> {
   try {
     const result = await retryWithDelay(() =>
       aoInstance.dryrun({
-        process: AO_DELEGATION_TRACKER_PROCESS_ID,
+        process: FLP_AO_DELEGATION_TRACKER_PROCESS_ID,
         tags: [{ name: "Action", value: "Get-Total-Delegated-AO-By-Project" }],
       })
     );
