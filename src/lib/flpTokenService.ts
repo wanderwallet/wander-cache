@@ -18,6 +18,7 @@ interface FlpToken {
   logo: string;
   id: string;
   flpId: string;
+  autoClaim: boolean;
 }
 
 type DelegationRecord = Record<string, number>;
@@ -38,6 +39,13 @@ const testTokenFlpIds = new Set([
   "FyQ9uMx1XevItG1kE65BMvbbqcvdOGJrC_nb-PPIawk",
   "xswbZRtkjQQ8D1h6tx503iLaAxxPLWP10J2TvgbRZXk",
   "NQy9H6oAE-m55BheXbGu70nEWiiGMsL8lM9YsNJ8gD4",
+]);
+
+const manualClaimableFlpIds = new Set([
+  "NXZjrPKh-fQx8BUCG_OXBUtB4Ix8Xf0gbUtREFoWQ2Q",
+  "rW7h9J9jE2Xp36y4SKn2HgZaOuzRmbMfBRPwrFFifHE",
+  "3eZ6_ry6FD9CB58ImCQs6Qx_rJdDUGhz-D2W1AqzHD8",
+  "Wc8Rg-owsWSvrmb5XAlmSs3_4UtHo9i5ui2o9UCFuTk",
 ]);
 
 const CACHE_KEY = "flp-tokens";
@@ -84,6 +92,7 @@ async function getFlpTokensFromAo(): Promise<FlpToken[]> {
         ticker: token.flp_token_ticker,
         denomination: +token.flp_token_denomination,
         logo: token.flp_token_logo,
+        autoClaim: !manualClaimableFlpIds.has(token.flp_id),
       };
     })
     .filter(
