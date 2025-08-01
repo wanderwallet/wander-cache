@@ -252,6 +252,7 @@ export interface MarketChartResponse extends CoinGeckoMarketChartResult {
 }
 
 export async function getMarketChart(
+  symbol: string = "arweave",
   currency: string = "usd",
   days: string | number = "7"
 ): Promise<MarketChartResponse> {
@@ -263,7 +264,7 @@ export async function getMarketChart(
   }
 
   // cache key
-  const cacheKey = `chart:arweave:${currency}:${daysStr}`;
+  const cacheKey = `chart:${symbol}:${currency}:${daysStr}`;
 
   try {
     const cachedData = await redis.get<CachedMarketChartData>(cacheKey);
@@ -288,7 +289,7 @@ export async function getMarketChart(
     }
 
     const response = await fetch(
-      `https://api.coingecko.com/api/v3/coins/arweave/market_chart?vs_currency=${currency}&days=${daysStr}`
+      `https://api.coingecko.com/api/v3/coins/${symbol}/market_chart?vs_currency=${currency}&days=${daysStr}`
     );
 
     if (!response.ok) {
@@ -319,7 +320,7 @@ export async function getMarketChart(
       cacheAge: 0,
     };
   } catch (error) {
-    console.error(`Failed to fetch Arweave chart data:`, error);
+    console.error(`Failed to fetch ${symbol} chart data:`, error);
 
     // fallback to cached data if API fails
     const cachedData = await redis.get<CachedMarketChartData>(cacheKey);
