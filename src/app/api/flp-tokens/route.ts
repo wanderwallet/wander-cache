@@ -21,8 +21,8 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
 
-    // Cache for 5 minutes
-    response.headers.set("Cache-Control", "public, max-age=300");
+    // Cache for 1 hour
+    response.headers.set("Cache-Control", "public, max-age=3600");
     response.headers.set("ETag", currentETag);
 
     return response;
