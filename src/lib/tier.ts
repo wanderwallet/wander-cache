@@ -132,7 +132,7 @@ function getWalletTier(walletRank: number, totalWallets: number): number {
 async function getWalletsTierInfoFromAo() {
   const result = await retryWithDelay(() =>
     aoInstance.dryrun({
-      process: "LApdfPKb-uxyPPxQGEPFRWqAuDymNXLAcAE_xsLNPoQ",
+      process: "rkAezEIgacJZ_dVuZHOKJR8WKpSDqLGfgPJrs_Es7CA",
       tags: [{ name: "Action", value: "Get-Wallets" }],
     })
   );
