@@ -1,5 +1,5 @@
 import { retryWithDelay } from "@/utils/retry.utils";
-import { aoInstance } from "./aoconnect";
+import { aoInstanceWithCustomCu } from "./aoconnect";
 import { redis } from "./redis";
 
 type TierWallet = {
@@ -131,7 +131,7 @@ function getWalletTier(walletRank: number, totalWallets: number): number {
 
 async function getWalletsTierInfoFromAo() {
   const result = await retryWithDelay(() =>
-    aoInstance.dryrun({
+    aoInstanceWithCustomCu.dryrun({
       process: "rkAezEIgacJZ_dVuZHOKJR8WKpSDqLGfgPJrs_Es7CA",
       tags: [{ name: "Action", value: "Get-Wallets" }],
     })
