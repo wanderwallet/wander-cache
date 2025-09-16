@@ -218,3 +218,8 @@ export async function getWalletsTierInfo(addresses: string[]) {
 
   return result;
 }
+
+export async function getWalletTierInfo(address: string) {
+  const walletsTierInfo = await getWalletsTierInfo([address]);
+  return walletsTierInfo[address];
+}

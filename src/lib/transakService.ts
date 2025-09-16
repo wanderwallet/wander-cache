@@ -2,6 +2,7 @@ import "./polyfill";
 import { redis } from "./redis";
 import { aoInstance, createDataItemSigner } from "./aoconnect";
 import { createHash } from "crypto";
+import { getWalletTierInfo } from "./tier";
 
 interface TransakTokenData {
   accessToken: string;
@@ -56,7 +57,8 @@ const TOKEN_BUFFER_TIME = 5 * 60 * 1000; // 5 minutes buffer before expiry
 const TRANSAK_FEE_PERCENT = 2.5;
 const TRANSAK_UPDATER_PROCESS_ID =
   "2NekLgweZPOYkgVTAsiE-g1EeOZi_kFXOC4jIyzsYaU";
-const BASE_URL = "https://api.transak.com/partners/api/v2";
+// const BASE_URL = "https://api.transak.com/partners/api/v2";
+const BASE_URL = "https://api-stg.transak.com/partners/api/v2";
 
 const SECRET_SALT = process.env.SECRET_SALT || "default-salt";
 
@@ -296,4 +298,55 @@ async function updateFeeSavings(
   } catch (error) {
     console.error(error);
   }
+}
+
+async function getTransakApiKey(apiKeyId: 0 | 1, address: string) {
+  let apiKey = TRANSAK_API_KEYS[apiKeyId];
+  try {
+    const tierInfo = await getWalletTierInfo(address);
+    const isTopTier = tierInfo.tier <= 2;
+    apiKey = TRANSAK_API_KEYS[isTopTier ? 1 : 0];
+  } catch {}
+  return apiKey;
+}
+
+export async function createTransakWidgetUrl(
+  apiKeyId: 0 | 1,
+  widgetParams: Record<string, unknown>,
+  referrerDomain = "chrome-extension://einnioafmpimabjcddiinlhmijaionap"
+) {
+  const apiKey = await getTransakApiKey(
+    apiKeyId,
+    widgetParams.walletAddress as string
+  );
+  const accessToken = await getValidAccessToken(apiKey);
+  const response = await fetch(
+    "https://api-gateway-stg.transak.com/api/v2/auth/session",
+    {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "access-token": accessToken,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        widgetParams: {
+          apiKey: apiKey.key,
+          referrerDomain,
+          ...widgetParams,
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to create widget URL: ${response.status} ${response.statusText}`
+    );
+  }
+
+  const {
+    data: { widgetUrl },
+  } = await response.json();
+  return widgetUrl;
 }
