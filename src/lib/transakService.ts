@@ -300,25 +300,18 @@ async function updateFeeSavings(
   }
 }
 
-async function getTransakApiKey(apiKeyId: 0 | 1, address: string) {
-  let apiKey = TRANSAK_API_KEYS[apiKeyId];
-  try {
-    const tierInfo = await getWalletTierInfo(address);
-    const isTopTier = tierInfo.tier <= 2;
-    apiKey = TRANSAK_API_KEYS[isTopTier ? 1 : 0];
-  } catch {}
+async function getTransakApiKey(address: string) {
+  const tierInfo = await getWalletTierInfo(address);
+  const isTopTier = tierInfo.tier <= 2;
+  const apiKey = TRANSAK_API_KEYS[isTopTier ? 1 : 0];
   return apiKey;
 }
 
 export async function createTransakWidgetUrl(
-  apiKeyId: 0 | 1,
   widgetParams: Record<string, unknown>,
-  referrerDomain = "chrome-extension://einnioafmpimabjcddiinlhmijaionap"
+  referrerDomain: string
 ) {
-  const apiKey = await getTransakApiKey(
-    apiKeyId,
-    widgetParams.walletAddress as string
-  );
+  const apiKey = await getTransakApiKey(widgetParams.walletAddress as string);
   const accessToken = await getValidAccessToken(apiKey);
   const response = await fetch(
     "https://api-gateway-stg.transak.com/api/v2/auth/session",
