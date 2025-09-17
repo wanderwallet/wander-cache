@@ -22,12 +22,9 @@ export async function GET(request: NextRequest) {
   try {
     const targetUrl = new URL(target);
 
-    // if (
-    //   targetUrl.protocol !== "https:" ||
-    //   !ALLOWED_HOSTS.has(targetUrl.hostname)
-    // ) {
-    //   return ERROR_RESPONSES.INVALID_URL;
-    // }
+    if (!ALLOWED_HOSTS.has(targetUrl.hostname)) {
+      return ERROR_RESPONSES.INVALID_URL;
+    }
 
     for (const [key, value] of searchParams) {
       if (key !== "to") {
