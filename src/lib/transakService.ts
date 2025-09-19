@@ -2,7 +2,7 @@ import "./polyfill";
 import { redis } from "./redis";
 import { aoInstance, createDataItemSigner } from "./aoconnect";
 import { createHash } from "crypto";
-import { getWalletTierInfo } from "./tier";
+import { getWalletTierInfo, TierTypes } from "./tier";
 
 interface TransakTokenData {
   accessToken: string;
@@ -302,7 +302,8 @@ async function updateFeeSavings(
 
 async function getTransakApiKey(address: string) {
   const tierInfo = await getWalletTierInfo(address);
-  const isTopTier = tierInfo.tier <= 2;
+  const isTopTier =
+    tierInfo?.tier === TierTypes.PRIME || tierInfo?.tier === TierTypes.EDGE;
   const apiKey = TRANSAK_API_KEYS[isTopTier ? 1 : 0];
   return apiKey;
 }

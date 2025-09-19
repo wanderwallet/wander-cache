@@ -19,7 +19,7 @@ type CachedWalletsTierInfo = {
   totalWallets: number;
 };
 
-const TierTypes = {
+export const TierTypes = {
   PRIME: 1,
   EDGE: 2,
   RESERVE: 3,
