@@ -57,8 +57,8 @@ const TOKEN_BUFFER_TIME = 5 * 60 * 1000; // 5 minutes buffer before expiry
 const TRANSAK_FEE_PERCENT = 2.5;
 const TRANSAK_UPDATER_PROCESS_ID =
   "2NekLgweZPOYkgVTAsiE-g1EeOZi_kFXOC4jIyzsYaU";
-const API_BASE_URL = "https://api-stg.transak.com/partners/api/v2"; // TODO: change to api.transak.com
-const GATEWAY_API_BASE_URL = "https://api-gateway-stg.transak.com/api/v2"; // TODO: change to api-gateway.transak.com
+const API_BASE_URL = "https://api.transak.com/partners/api/v2";
+const GATEWAY_API_BASE_URL = "https://api-gateway.transak.com/api/v2";
 
 const SECRET_SALT = process.env.SECRET_SALT || "default-salt";
 
