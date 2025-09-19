@@ -57,8 +57,8 @@ const TOKEN_BUFFER_TIME = 5 * 60 * 1000; // 5 minutes buffer before expiry
 const TRANSAK_FEE_PERCENT = 2.5;
 const TRANSAK_UPDATER_PROCESS_ID =
   "2NekLgweZPOYkgVTAsiE-g1EeOZi_kFXOC4jIyzsYaU";
-// const BASE_URL = "https://api.transak.com/partners/api/v2";
-const BASE_URL = "https://api-stg.transak.com/partners/api/v2";
+const API_BASE_URL = "https://api-stg.transak.com/partners/api/v2"; // TODO: change to api.transak.com
+const GATEWAY_API_BASE_URL = "https://api-gateway-stg.transak.com/api/v2"; // TODO: change to api-gateway.transak.com
 
 const SECRET_SALT = process.env.SECRET_SALT || "default-salt";
 
@@ -113,7 +113,7 @@ async function refreshAccessToken(apiKey: TransakApiKey): Promise<string> {
     throw new Error("Missing Transak API credentials");
   }
 
-  const response = await fetch(`${BASE_URL}/refresh-token`, {
+  const response = await fetch(`${API_BASE_URL}/refresh-token`, {
     method: "POST",
     headers: {
       accept: "application/json",
@@ -171,7 +171,7 @@ export async function getOrder(
 ): Promise<TransakOrder> {
   const accessToken = await getValidAccessToken(apiKey);
 
-  const response = await fetch(`${BASE_URL}/order/${partnerOrderId}`, {
+  const response = await fetch(`${API_BASE_URL}/order/${partnerOrderId}`, {
     method: "GET",
     headers: {
       accept: "application/json",
@@ -199,7 +199,7 @@ export async function getOrders(
   const endDateString = now.toISOString().split("T")[0];
 
   const response = await fetch(
-    `${BASE_URL}/orders?limit=100&skip=0&startDate=${startDateString}&endDate=${endDateString}&filter[productsAvailed]=%5B%22BUY%22%5D&filter[status]=COMPLETED&filter[sortOrder]=desc`,
+    `${API_BASE_URL}/orders?limit=100&skip=0&startDate=${startDateString}&endDate=${endDateString}&filter[productsAvailed]=%5B%22BUY%22%5D&filter[status]=COMPLETED&filter[sortOrder]=desc`,
     {
       method: "GET",
       headers: {
@@ -313,24 +313,21 @@ export async function createTransakWidgetUrl(
 ) {
   const apiKey = await getTransakApiKey(widgetParams.walletAddress as string);
   const accessToken = await getValidAccessToken(apiKey);
-  const response = await fetch(
-    "https://api-gateway-stg.transak.com/api/v2/auth/session",
-    {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        "access-token": accessToken,
-        "content-type": "application/json",
+  const response = await fetch(`${GATEWAY_API_BASE_URL}/auth/session`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "access-token": accessToken,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      widgetParams: {
+        apiKey: apiKey.key,
+        referrerDomain,
+        ...widgetParams,
       },
-      body: JSON.stringify({
-        widgetParams: {
-          apiKey: apiKey.key,
-          referrerDomain,
-          ...widgetParams,
-        },
-      }),
-    }
-  );
+    }),
+  });
 
   if (!response.ok) {
     throw new Error(
