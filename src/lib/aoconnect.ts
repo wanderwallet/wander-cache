@@ -1,16 +1,12 @@
 import "./polyfill";
 import {
-  connect,
+  dryrun,
+  message,
+  //   connect,
   createDataItemSigner as createDataItemSignerNode,
 } from "@permaweb/aoconnect/node";
 
-const CU_URL = process.env.CU_URL || "https://cu.ao-testnet.xyz";
-
-// export const aoInstance = connect({ MODE: "legacy" });
-export const aoInstance = connect({ MODE: "mainnet" });
-export const aoInstanceWithCustomCu = connect({
-  MODE: "mainnet",
-  CU_URL,
-});
+export const aoInstance = { dryrun, message };
+export const aoInstanceWithCustomCu = aoInstance;
 
 export const createDataItemSigner = createDataItemSignerNode;
