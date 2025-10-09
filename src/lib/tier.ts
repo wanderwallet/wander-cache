@@ -1,5 +1,5 @@
 import { retryWithDelay } from "@/utils/retry.utils";
-import { aoInstanceWithCustomCu } from "./aoconnect";
+import { customAoInstance, ourAoInstance } from "./aoconnect";
 import { redis } from "./redis";
 
 type TierWallet = {
@@ -17,6 +17,11 @@ type CachedWalletsTierInfo = {
   walletsTierInfo: WalletsTierInfo;
   snapshotTimestamp: number;
   totalWallets: number;
+};
+
+type WalletsTierInfoFromAo = {
+  wallets: Array<{ address: string; balance: string; savings: number }>;
+  snapshotTimestamp: number;
 };
 
 export const TierTypes = {
@@ -130,18 +135,27 @@ function getWalletTier(walletRank: number, totalWallets: number): number {
 }
 
 async function getWalletsTierInfoFromAo() {
-  const result = await retryWithDelay(() =>
-    aoInstanceWithCustomCu.dryrun({
-      process: "rkAezEIgacJZ_dVuZHOKJR8WKpSDqLGfgPJrs_Es7CA",
-      tags: [{ name: "Action", value: "Get-Wallets" }],
-    })
-  );
+  const { wallets, snapshotTimestamp } =
+    await retryWithDelay<WalletsTierInfoFromAo>(async (attempt) => {
+      const instance = attempt % 2 === 0 ? customAoInstance : ourAoInstance;
 
-  const data = result?.Messages[0]?.Data ?? "{}";
-  const { wallets, snapshotTimestamp } = JSON.parse(data) as {
-    wallets: Array<{ address: string; balance: string; savings: number }>;
-    snapshotTimestamp: number;
-  };
+      const result = await instance.dryrun({
+        process: "rkAezEIgacJZ_dVuZHOKJR8WKpSDqLGfgPJrs_Es7CA",
+        tags: [{ name: "Action", value: "Get-Wallets" }],
+      });
+
+      const data = result?.Messages?.[0]?.Data;
+      if (!data) {
+        throw new Error("No data returned from AO");
+      }
+
+      const parsedData = JSON.parse(data);
+      if (!parsedData?.wallets || !parsedData?.snapshotTimestamp) {
+        throw new Error("Invalid response from AO");
+      }
+
+      return parsedData;
+    });
 
   const totalWallets = wallets.length;
 
