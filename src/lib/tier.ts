@@ -1,6 +1,7 @@
 import { retryWithDelay } from "@/utils/retry.utils";
 import { customAoInstance, ourAoInstance } from "./aoconnect";
 import { redis } from "./redis";
+import { isArweaveAddress } from "@/utils/address.utils";
 
 type TierWallet = {
   balance: string;
@@ -78,6 +79,8 @@ const Tiers = [
   },
 ];
 
+const TIER_PROCESS_ID = "rkAezEIgacJZ_dVuZHOKJR8WKpSDqLGfgPJrs_Es7CA";
+
 function getTierThresholds(totalWallets: number) {
   const tierThresholds = [];
 
@@ -135,53 +138,99 @@ function getWalletTier(walletRank: number, totalWallets: number): number {
 }
 
 async function getWalletsTierInfoFromAo() {
-  const { wallets, snapshotTimestamp } =
-    await retryWithDelay<WalletsTierInfoFromAo>(async (attempt) => {
-      const instance = attempt % 2 === 0 ? customAoInstance : ourAoInstance;
+  try {
+    // TODO: Update to actual process ID
+    const response = await fetch(
+      `http://forward.computer/QC6z9NZYtVYn0Elx40iUmeIYvzKvuqk-OmfoleUxpSQ~process@1.0/now/wallets-tier-info/~json@1.0/serialize/?bundle`
+    );
+    if (!response.ok) {
+      throw new Error("Failed to fetch wallets tier info from HB");
+    }
+    const data = (await response.json()) as Record<string, TierWallet>;
 
-      const result = await instance.dryrun({
-        process: "rkAezEIgacJZ_dVuZHOKJR8WKpSDqLGfgPJrs_Es7CA",
-        tags: [{ name: "Action", value: "Get-Wallets" }],
+    let firstWallet: TierWallet | null = null;
+    const walletsTierInfo: Record<string, TierWallet> = {};
+
+    for (const [addr, wallet] of Object.entries(data)) {
+      if (isArweaveAddress(addr)) {
+        if (!firstWallet) {
+          firstWallet = wallet;
+        }
+        walletsTierInfo[addr] = wallet;
+      }
+    }
+
+    if (!firstWallet) {
+      throw new Error("No valid wallet data found");
+    }
+
+    const snapshotTimestamp = firstWallet.snapshotTimestamp;
+    const totalWallets = firstWallet.totalHolders;
+    const actualTotalWallets = Object.keys(walletsTierInfo).length;
+
+    if (!snapshotTimestamp || !totalWallets) {
+      throw new Error("No valid wallet data found");
+    }
+
+    if (actualTotalWallets !== totalWallets) {
+      throw new Error("Total wallets mismatch");
+    }
+
+    return {
+      walletsTierInfo,
+      snapshotTimestamp,
+      totalWallets,
+    };
+  } catch (error) {
+    console.error("Fallback to dryrun due to HB fetch error: ", error);
+    const { wallets, snapshotTimestamp } =
+      await retryWithDelay<WalletsTierInfoFromAo>(async (attempt) => {
+        const instance = attempt % 2 === 0 ? customAoInstance : ourAoInstance;
+
+        const result = await instance.dryrun({
+          process: TIER_PROCESS_ID,
+          tags: [{ name: "Action", value: "Get-Wallets" }],
+        });
+
+        const data = result?.Messages?.[0]?.Data;
+        if (!data) {
+          throw new Error("No data returned from AO");
+        }
+
+        const parsedData = JSON.parse(data);
+        if (!parsedData?.wallets || !parsedData?.snapshotTimestamp) {
+          throw new Error("Invalid response from AO");
+        }
+
+        return parsedData;
       });
 
-      const data = result?.Messages?.[0]?.Data;
-      if (!data) {
-        throw new Error("No data returned from AO");
-      }
+    const totalWallets = wallets.length;
 
-      const parsedData = JSON.parse(data);
-      if (!parsedData?.wallets || !parsedData?.snapshotTimestamp) {
-        throw new Error("Invalid response from AO");
-      }
+    const walletsTierInfo = wallets.reduce(
+      (acc: Record<string, TierWallet>, wallet, index) => {
+        const walletRank = index + 1;
+        const tier = getWalletTier(walletRank, totalWallets);
+        const progress = calculateTierProgressPercent(walletRank, totalWallets);
 
-      return parsedData;
-    });
+        const walletData = {
+          balance: wallet.balance,
+          rank: walletRank,
+          tier,
+          progress,
+          snapshotTimestamp,
+          totalHolders: totalWallets,
+        };
 
-  const totalWallets = wallets.length;
+        acc[wallet.address] = walletData;
 
-  const walletsTierInfo = wallets.reduce(
-    (acc: Record<string, TierWallet>, wallet, index) => {
-      const walletRank = index + 1;
-      const tier = getWalletTier(walletRank, totalWallets);
-      const progress = calculateTierProgressPercent(walletRank, totalWallets);
+        return acc;
+      },
+      {}
+    );
 
-      const walletData = {
-        balance: wallet.balance,
-        rank: walletRank,
-        tier,
-        progress,
-        snapshotTimestamp,
-        totalHolders: totalWallets,
-      };
-
-      acc[wallet.address] = walletData;
-
-      return acc;
-    },
-    {}
-  );
-
-  return { walletsTierInfo, snapshotTimestamp, totalWallets };
+    return { walletsTierInfo, snapshotTimestamp, totalWallets };
+  }
 }
 
 export async function getWalletsTierInfo(addresses: string[]) {
