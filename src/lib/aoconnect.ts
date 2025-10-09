@@ -6,9 +6,10 @@ import {
 
 const CU_URL = process.env.CU_URL || "https://cu.ao-testnet.xyz";
 
-export const aoInstance = connect({ MODE: "legacy" });
+// export const aoInstance = connect({ MODE: "legacy" });
+export const aoInstance = connect({ MODE: "mainnet" });
 export const aoInstanceWithCustomCu = connect({
-  MODE: "legacy",
+  MODE: "mainnet",
   CU_URL,
 });
 
