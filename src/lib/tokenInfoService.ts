@@ -125,11 +125,14 @@ function getTokenInfoFromData(res: AoResponse, id: string): TokenInfo {
         }
       } catch {}
     }
-    const Ticker = getTagValue("Ticker", msg.Tags);
-    const Name = getTagValue("Name", msg.Tags);
-    const Denomination = getTagValue("Denomination", msg.Tags);
-    const Logo = getTagValue("Logo", msg.Tags);
-    const Transferable = getTagValue("Transferable", msg.Tags);
+    const tags = msg.Tags;
+    const Ticker = getTagValue("Ticker", tags) || getTagValue("ticker", tags);
+    const Name = getTagValue("Name", tags) || getTagValue("name", tags);
+    const Denomination =
+      getTagValue("Denomination", tags) || getTagValue("denomination", tags);
+    const Logo = getTagValue("Logo", tags) || getTagValue("logo", tags);
+    const Transferable =
+      getTagValue("Transferable", tags) || getTagValue("transferable", tags);
 
     if (!Ticker && !Name) continue;
 
