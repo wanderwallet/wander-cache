@@ -91,12 +91,6 @@ export async function getTokenInfo(
   }
 }
 
-/**
- * Find the value for a tag name
- */
-export const getTagValue = (tagName: string, tags: Tag[]) =>
-  tags.find((t) => t.name === tagName)?.value;
-
 function getTokenInfoFromData(res: AoResponse, id: string): TokenInfo {
   // find message with token info
   for (const msg of res.Messages) {
@@ -125,14 +119,32 @@ function getTokenInfoFromData(res: AoResponse, id: string): TokenInfo {
         }
       } catch {}
     }
-    const tags = msg.Tags;
-    const Ticker = getTagValue("Ticker", tags) || getTagValue("ticker", tags);
-    const Name = getTagValue("Name", tags) || getTagValue("name", tags);
-    const Denomination =
-      getTagValue("Denomination", tags) || getTagValue("denomination", tags);
-    const Logo = getTagValue("Logo", tags) || getTagValue("logo", tags);
-    const Transferable =
-      getTagValue("Transferable", tags) || getTagValue("transferable", tags);
+
+    let Ticker, Name, Denomination, Logo, Transferable;
+
+    for (let i = 0; i < msg.Tags.length; i++) {
+      const tag = msg.Tags[i];
+      const name = tag.name.toLowerCase();
+      const value = tag.value;
+
+      switch (name) {
+        case "ticker":
+          Ticker ??= value;
+          break;
+        case "name":
+          Name ??= value;
+          break;
+        case "denomination":
+          Denomination ??= value;
+          break;
+        case "logo":
+          Logo ??= value;
+          break;
+        case "transferable":
+          Transferable ??= value;
+          break;
+      }
+    }
 
     if (!Ticker && !Name) continue;
 
