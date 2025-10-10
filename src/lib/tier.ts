@@ -79,8 +79,7 @@ const Tiers = [
   },
 ];
 
-// TODO: Update to actual prod process ID
-const TIER_PROCESS_ID = "QC6z9NZYtVYn0Elx40iUmeIYvzKvuqk-OmfoleUxpSQ";
+const TIER_PROCESS_ID = "rkAezEIgacJZ_dVuZHOKJR8WKpSDqLGfgPJrs_Es7CA";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 1 day in milliseconds
 
