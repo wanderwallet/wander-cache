@@ -79,7 +79,10 @@ const Tiers = [
   },
 ];
 
-const TIER_PROCESS_ID = "rkAezEIgacJZ_dVuZHOKJR8WKpSDqLGfgPJrs_Es7CA";
+// TODO: Update to actual prod process ID
+const TIER_PROCESS_ID = "QC6z9NZYtVYn0Elx40iUmeIYvzKvuqk-OmfoleUxpSQ";
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 1 day in milliseconds
 
 function getTierThresholds(totalWallets: number) {
   const tierThresholds = [];
@@ -139,9 +142,8 @@ function getWalletTier(walletRank: number, totalWallets: number): number {
 
 async function getWalletsTierInfoFromAo() {
   try {
-    // TODO: Update to actual process ID
     const response = await fetch(
-      `http://forward.computer/QC6z9NZYtVYn0Elx40iUmeIYvzKvuqk-OmfoleUxpSQ~process@1.0/now/wallets-tier-info/~json@1.0/serialize/?bundle`
+      `http://forward.computer/${TIER_PROCESS_ID}~process@1.0/now/wallets-tier-info/~json@1.0/serialize/?bundle`
     );
     if (!response.ok) {
       throw new Error("Failed to fetch wallets tier info from HB");
@@ -169,11 +171,17 @@ async function getWalletsTierInfoFromAo() {
     const actualTotalWallets = Object.keys(walletsTierInfo).length;
 
     if (!snapshotTimestamp || !totalWallets) {
-      throw new Error("No valid wallet data found");
+      throw new Error("Invalid response from HB");
     }
 
     if (actualTotalWallets !== totalWallets) {
       throw new Error("Total wallets mismatch");
+    }
+
+    // Ensure snapshot is not older than 1 day
+    const timestampDiff = Date.now() - snapshotTimestamp;
+    if (timestampDiff > ONE_DAY_MS) {
+      throw new Error("Snapshot data is too old - needs refresh");
     }
 
     return {
