@@ -3,13 +3,21 @@ import { customAoInstance, ourAoInstance } from "./aoconnect";
 import { redis } from "./redis";
 import { isArweaveAddress } from "@/utils/address.utils";
 
-type TierWallet = {
+interface TierWalletBase {
   balance: string;
   rank: number | "";
   tier: number;
   progress: number;
+}
+
+type TierWallet = TierWalletBase & {
   snapshotTimestamp: number;
   totalHolders: number;
+};
+
+type TierWalletHB = TierWalletBase & {
+  "snapshot-timestamp": number;
+  "total-holders": number;
 };
 
 type WalletsTierInfo = Record<string, TierWallet>;
@@ -142,22 +150,30 @@ function getWalletTier(walletRank: number, totalWallets: number): number {
 async function getWalletsTierInfoFromAo() {
   try {
     const response = await fetch(
-      `http://forward.computer/${TIER_PROCESS_ID}~process@1.0/now/wallets-tier-info/~json@1.0/serialize/?bundle`
+      `https://hyperbeam.ar/${TIER_PROCESS_ID}~process@1.0/now/wallets-tier-info/~json@1.0/serialize/?bundle`
     );
     if (!response.ok) {
       throw new Error("Failed to fetch wallets tier info from HB");
     }
-    const data = (await response.json()) as Record<string, TierWallet>;
+    const data = (await response.json()) as Record<string, TierWalletHB>;
 
     let firstWallet: TierWallet | null = null;
     const walletsTierInfo: Record<string, TierWallet> = {};
 
     for (const [addr, wallet] of Object.entries(data)) {
       if (isArweaveAddress(addr)) {
+        const transformedWallet: TierWallet = {
+          balance: wallet.balance,
+          rank: wallet.rank,
+          tier: wallet.tier,
+          progress: wallet.progress,
+          snapshotTimestamp: wallet["snapshot-timestamp"],
+          totalHolders: wallet["total-holders"],
+        };
         if (!firstWallet) {
-          firstWallet = wallet;
+          firstWallet = transformedWallet;
         }
-        walletsTierInfo[addr] = wallet;
+        walletsTierInfo[addr] = transformedWallet;
       }
     }
 
