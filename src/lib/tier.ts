@@ -1,5 +1,5 @@
 import { retryWithDelay } from "@/utils/retry.utils";
-import { customAoInstance, ourAoInstance } from "./aoconnect";
+import { ourAoInstance } from "./aoconnect";
 import { redis } from "./redis";
 import { isArweaveAddress } from "@/utils/address.utils";
 
@@ -207,10 +207,8 @@ async function getWalletsTierInfoFromAo() {
   } catch (error) {
     console.error("Fallback to dryrun due to HB fetch error: ", error);
     const { wallets, snapshotTimestamp } =
-      await retryWithDelay<WalletsTierInfoFromAo>(async (attempt) => {
-        const instance = attempt % 2 === 0 ? customAoInstance : ourAoInstance;
-
-        const result = await instance.dryrun({
+      await retryWithDelay<WalletsTierInfoFromAo>(async () => {
+        const result = await ourAoInstance.dryrun({
           process: TIER_PROCESS_ID,
           tags: [{ name: "Action", value: "Get-Wallets" }],
         });
