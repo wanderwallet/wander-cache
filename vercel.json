@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/update-flp-tokens",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/vesting-trigger",
+      "schedule": "0 0 * * *"
     }
   ]
 }
