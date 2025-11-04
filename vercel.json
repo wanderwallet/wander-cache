@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/cron/vesting-trigger",
-      "schedule": "0 0 * * *"
+      "schedule": "0 17 * * *"
     }
   ]
 }
