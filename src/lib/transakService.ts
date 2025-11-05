@@ -1,5 +1,5 @@
 import "./polyfill";
-import { redis } from "./redis";
+import { redisHelper } from "./redis";
 import { aoInstance, createDataItemSigner } from "./aoconnect";
 import { createHash } from "crypto";
 import { getWalletTierInfo, TierTypes } from "./tier";
@@ -78,7 +78,7 @@ export async function getValidAccessToken(
   apiKey: TransakApiKey
 ): Promise<string> {
   // Check if we have a cached token
-  const cachedToken = await redis.get<TransakTokenData>(
+  const cachedToken = await redisHelper.get<TransakTokenData>(
     `${TRANSAK_ACCESS_TOKEN_PREFIX}:${apiKey.id}`
   );
 
@@ -145,9 +145,9 @@ async function refreshAccessToken(apiKey: TransakApiKey): Promise<string> {
 
   const expiryInSeconds = Math.floor((expiresAt - Date.now()) / 1000);
 
-  await redis.set(
+  await redisHelper.set(
     `${TRANSAK_ACCESS_TOKEN_PREFIX}:${apiKey.id}`,
-    JSON.stringify(tokenData),
+    tokenData,
     { ex: expiryInSeconds }
   );
 
@@ -215,7 +215,9 @@ export async function getOrders(
 }
 
 export async function processOrder(order: TransakOrder, apiKey: TransakApiKey) {
-  const isOrderProcessed = await redis.get(`transak:processed:${order.id}`);
+  const isOrderProcessed = await redisHelper.get(
+    `transak:processed:${order.id}`
+  );
   if (isOrderProcessed) return;
 
   const savings =
@@ -292,7 +294,7 @@ async function updateFeeSavings(
       ],
     });
 
-    await redis.set(`transak:processed:${orderId}`, true, {
+    await redisHelper.set(`transak:processed:${orderId}`, true, {
       ex: 60 * 60 * 24 * 3,
     }); // 3 days expiry
   } catch (error) {

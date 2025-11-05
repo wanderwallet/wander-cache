@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@permaweb/aoconnect": "^0.0.77",
-    "@upstash/redis": "^1.35.1",
+    "ioredis": "^5.8.2",
     "next": "15.2.2",
     "p-limit": "^6.2.0",
     "p-retry": "^6.2.1",

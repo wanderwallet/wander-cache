@@ -1,17 +1,34 @@
-import { Redis } from "@upstash/redis";
+import Redis from "ioredis";
 
-// Check for required environment variables
-if (
-  !process.env.UPSTASH_REDIS_REST_URL ||
-  !process.env.UPSTASH_REDIS_REST_TOKEN
-) {
-  console.warn(
-    "Missing Upstash Redis configuration. Please set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN environment variables."
-  );
-}
+const globalForRedis = global as unknown as { redis: Redis };
 
-// Create Redis client using Upstash
-export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
+export const redis =
+  globalForRedis.redis || new Redis(process.env.REDIS_URL as string);
+
+if (process.env.NODE_ENV !== "production") globalForRedis.redis = redis;
+
+export const redisHelper = {
+  async get<T>(key: string): Promise<T | null> {
+    const value = await redis.get(key);
+    if (!value) return null;
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return value as T;
+    }
+  },
+
+  async set(
+    key: string,
+    value: unknown,
+    options?: { ex?: number }
+  ): Promise<void> {
+    const stringValue =
+      typeof value === "string" ? value : JSON.stringify(value);
+    if (options?.ex) {
+      await redis.setex(key, options.ex, stringValue);
+    } else {
+      await redis.set(key, stringValue);
+    }
+  },
+};

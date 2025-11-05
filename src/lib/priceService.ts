@@ -1,4 +1,4 @@
-import { redis } from "./redis";
+import { redisHelper } from "./redis";
 
 interface CoinGeckoPriceResult {
   [coinId: string]: {
@@ -45,7 +45,7 @@ export async function getPrice(
   const cacheKey = `price:${symbol.toLowerCase()}:${currency.toLowerCase()}`;
 
   // Cache first
-  const cachedPrice = await redis.get<CachedPriceData>(cacheKey);
+  const cachedPrice = await redisHelper.get<CachedPriceData>(cacheKey);
 
   if (cachedPrice) {
     try {
@@ -143,12 +143,12 @@ export async function fetchPriceFromCoingeckoApi(
     const cacheKey = `price:${symbol.toLowerCase()}:${currency.toLowerCase()}`;
 
     // Cache the result with timestamp
-    await redis.set(
+    await redisHelper.set(
       cacheKey,
-      JSON.stringify({
+      {
         price,
         timestamp: Date.now(),
-      }),
+      },
       { ex: 86400 } // 24 hours
     );
   }
@@ -267,7 +267,7 @@ export async function getMarketChart(
   const cacheKey = `chart:${symbol}:${currency}:${daysStr}`;
 
   try {
-    const cachedData = await redis.get<CachedMarketChartData>(cacheKey);
+    const cachedData = await redisHelper.get<CachedMarketChartData>(cacheKey);
 
     if (cachedData) {
       const cacheTimestamp = new Date(cachedData.timestamp);
@@ -304,7 +304,7 @@ export async function getMarketChart(
     }
 
     // cache the data
-    await redis.set(
+    await redisHelper.set(
       cacheKey,
       {
         prices: data.prices,
@@ -323,7 +323,7 @@ export async function getMarketChart(
     console.error(`Failed to fetch ${symbol} chart data:`, error);
 
     // fallback to cached data if API fails
-    const cachedData = await redis.get<CachedMarketChartData>(cacheKey);
+    const cachedData = await redisHelper.get<CachedMarketChartData>(cacheKey);
     if (cachedData) {
       const cacheTimestamp = new Date(cachedData.timestamp);
       const cacheAge = Math.floor(
