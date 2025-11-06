@@ -13,6 +13,7 @@ const vesting = {
 
 const WNDR_PROCESS_ID = "7GoQfmSOct_aUOWKM4xbKGg6DzAmOgdKwg8Kf-CbHm4";
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+const TRIGGER_DAYS = [0, 2, 4]; // Days after unlock to trigger vesting
 
 async function triggerVesting(trancheIndex: number) {
   console.log(`✅ Vesting triggered for tranche ${trancheIndex + 1}`);
@@ -53,28 +54,28 @@ export async function GET(request: NextRequest) {
 
     const start = vesting.startTimeMs;
     const interval = vesting.unlockIntervalMs;
-    const total = vesting.totalTranches;
     const now = Date.now();
 
     const trancheIndex = Math.floor((now - start) / interval);
-    if (trancheIndex >= total) {
-      return NextResponse.json({ status: "completed" });
-    }
 
     const unlockTime = start + trancheIndex * interval;
     const nextUnlock = unlockTime + interval;
+    const daysSinceUnlock = Math.floor((now - unlockTime) / ONE_DAY_IN_MS);
 
-    if (now >= unlockTime && now - unlockTime < ONE_DAY_IN_MS) {
+    // Check if we're on one of the trigger days (0, 2, 4) after unlock
+    if (now >= unlockTime && TRIGGER_DAYS.includes(daysSinceUnlock)) {
       await triggerVesting(trancheIndex);
       return NextResponse.json({
         status: "triggered",
         tranche: trancheIndex + 1,
+        triggerDay: daysSinceUnlock,
       });
     }
 
     return NextResponse.json({
       status: "skipped",
       nextUnlock: new Date(nextUnlock).toISOString(),
+      daysSinceUnlock,
     });
   } catch (error: unknown) {
     let errorMessage;
