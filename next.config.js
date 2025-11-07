@@ -1,5 +1,9 @@
+const isVercel =
+  process.env.VERCEL === "1" || typeof process.env.VERCEL_ENV !== "undefined";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...(isVercel ? {} : { output: "standalone" }),
   modularizeImports: {
     "@permaweb/aoconnect": {
       transform: "@permaweb/aoconnect/node",
