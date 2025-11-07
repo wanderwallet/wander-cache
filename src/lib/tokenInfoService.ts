@@ -217,7 +217,7 @@ export async function updateAllTokenInfos(
 
     // Process tokens in batches
     while (true) {
-      const [nextCursor, keys] = await redis.scan(
+      const [nextCursor, keys] = await redis!.scan(
         cursor,
         "MATCH",
         "tokenInfo:*",
@@ -260,7 +260,7 @@ export async function updateAllTokenInfos(
 
       // Process batch results
       const batchFailedUpdates: string[] = [];
-      const pipeline = redis.pipeline();
+      const pipeline = redis!.pipeline();
 
       batchResults.forEach((result) => {
         if (result.status === "fulfilled") {

@@ -1,20 +1,35 @@
 import Redis from "ioredis";
 
-const globalForRedis = global as unknown as { redis: Redis };
+let redisClient: Redis | null | undefined;
 
-export const redis =
-  globalForRedis.redis || new Redis(process.env.REDIS_URL as string);
+const getRedis = (): Redis | null => {
+  if (redisClient !== undefined) return redisClient;
 
-if (process.env.NODE_ENV !== "production") globalForRedis.redis = redis;
+  const url = process.env.REDIS_URL;
+  if (!url) return (redisClient = null);
+
+  redisClient = new Redis(url, {
+    maxRetriesPerRequest: 3,
+    enableReadyCheck: false,
+    enableOfflineQueue: false,
+  });
+
+  redisClient.on("error", (err) => console.error("[Redis]", err.message));
+
+  return redisClient;
+};
 
 export const redisHelper = {
   async get<T>(key: string): Promise<T | null> {
-    const value = await redis.get(key);
-    if (!value) return null;
+    const client = getRedis();
+    if (!client) return null;
+
     try {
-      return JSON.parse(value) as T;
+      const value = await client.get(key);
+      if (!value) return null;
+      return JSON.parse(value);
     } catch {
-      return value as T;
+      return null;
     }
   },
 
@@ -23,12 +38,16 @@ export const redisHelper = {
     value: unknown,
     options?: { ex?: number }
   ): Promise<void> {
-    const stringValue =
-      typeof value === "string" ? value : JSON.stringify(value);
-    if (options?.ex) {
-      await redis.setex(key, options.ex, stringValue);
-    } else {
-      await redis.set(key, stringValue);
-    }
+    const client = getRedis();
+    if (!client) return;
+
+    try {
+      const str = JSON.stringify(value);
+      await (options?.ex
+        ? client.setex(key, options.ex, str)
+        : client.set(key, str));
+    } catch {}
   },
 };
+
+export const redis = getRedis();
