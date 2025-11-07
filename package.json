@@ -8,9 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "postinstall": "patch-package",
-    "update-prices": "dotenv --ignore-missing -- bash -c 'curl -X GET ${COOLIFY_URL:-${APP_URL:-http://localhost:3000}}/api/cron/update-prices -H \"Authorization: Bearer $CRON_SECRET\"'",
-    "process-transak-savings": "dotenv --ignore-missing -- bash -c 'curl -X GET ${COOLIFY_URL:-${APP_URL:-http://localhost:3000}}/api/cron/process-transak-savings -H \"Authorization: Bearer $CRON_SECRET\"'",
-    "update-flp-tokens": "dotenv --ignore-missing -- bash -c 'curl -X GET ${COOLIFY_URL:-${APP_URL:-http://localhost:3000}}/api/cron/update-flp-tokens -H \"Authorization: Bearer $CRON_SECRET\"'"
+    "update-prices": "[ -f .env ] && set -a && . ./.env && set +a || true; curl -X GET \"http://${COOLIFY_SERVICE_NAME:-localhost}:3000/api/cron/update-prices\" -H \"Authorization: Bearer ${CRON_SECRET}\"",
+    "process-transak-savings": "[ -f .env ] && set -a && . ./.env && set +a || true; curl -X GET \"http://${COOLIFY_SERVICE_NAME:-localhost}:3000/api/cron/process-transak-savings\" -H \"Authorization: Bearer ${CRON_SECRET}\"",
+    "update-flp-tokens": "[ -f .env ] && set -a && . ./.env && set +a || true; curl -X GET \"http://${COOLIFY_SERVICE_NAME:-localhost}:3000/api/cron/update-flp-tokens\" -H \"Authorization: Bearer ${CRON_SECRET}\""
   },
   "dependencies": {
     "@permaweb/aoconnect": "^0.0.77",
@@ -26,7 +26,6 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv-cli": "^11.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.2.2",
     "patch-package": "^8.0.0",
