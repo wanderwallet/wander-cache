@@ -1,5 +1,5 @@
 import { dataosAoInstance } from "@/lib/aoconnect";
-import { redis } from "./redis";
+import { redisHelper } from "./redis";
 import { retryWithDelay } from "@/utils/retry.utils";
 
 interface RawFlpToken {
@@ -311,7 +311,9 @@ async function getFlpTokensFromAo(): Promise<FlpToken[]> {
  */
 export async function getFlpTokens() {
   try {
-    const cachedFlpTokensData = await redis.get<CachedFlpTokenData>(CACHE_KEY);
+    const cachedFlpTokensData = await redisHelper.get<CachedFlpTokenData>(
+      CACHE_KEY
+    );
 
     if (cachedFlpTokensData) {
       const { flpTokens, timestamp } = cachedFlpTokensData;
@@ -343,7 +345,7 @@ export async function getFlpTokens() {
 export async function updateFlpTokens() {
   try {
     const flpTokens = await getFlpTokensFromAo();
-    await redis.set(CACHE_KEY, { flpTokens, timestamp: Date.now() });
+    await redisHelper.set(CACHE_KEY, { flpTokens, timestamp: Date.now() });
 
     return {
       flpTokens,

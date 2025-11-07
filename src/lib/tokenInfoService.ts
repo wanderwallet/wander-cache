@@ -1,6 +1,6 @@
 import "./polyfill";
 import { aoInstance } from "./aoconnect";
-import { redis } from "./redis";
+import { redis, redisHelper } from "./redis";
 import pLimit from "p-limit";
 import pRetry from "p-retry";
 
@@ -56,7 +56,9 @@ export async function getTokenInfo(
 
   try {
     // Cache first
-    const cachedTokenInfo = await redis.get<CachedTokenInfoData>(cacheKey);
+    const cachedTokenInfo = await redisHelper.get<CachedTokenInfoData>(
+      cacheKey
+    );
 
     if (cachedTokenInfo) {
       const { tokenInfo, timestamp } = cachedTokenInfo;
@@ -177,7 +179,7 @@ export async function getTokenInfoFromAo(
 
     if (save) {
       // Cache the result
-      await redis.set(
+      await redisHelper.set(
         cacheKey,
         { tokenInfo, timestamp: Date.now() },
         { ex: CACHE_EXPIRY }
@@ -215,10 +217,13 @@ export async function updateAllTokenInfos(
 
     // Process tokens in batches
     while (true) {
-      const [nextCursor, keys] = await redis.scan(cursor, {
-        match: "tokenInfo:*",
-        count: BATCH_SIZE,
-      });
+      const [nextCursor, keys] = await redis!.scan(
+        cursor,
+        "MATCH",
+        "tokenInfo:*",
+        "COUNT",
+        BATCH_SIZE
+      );
       cursor = parseInt(nextCursor, 10);
 
       const batchTokenIds = keys.map((key) => key.replace("tokenInfo:", ""));
@@ -255,17 +260,17 @@ export async function updateAllTokenInfos(
 
       // Process batch results
       const batchFailedUpdates: string[] = [];
-      const pipeline = redis.pipeline();
+      const pipeline = redis!.pipeline();
 
       batchResults.forEach((result) => {
         if (result.status === "fulfilled") {
           const { success, tokenId, tokenInfo, error } = result.value;
           if (success && tokenInfo) {
             results[tokenId] = tokenInfo;
-            pipeline.set(
+            pipeline.setex(
               `tokenInfo:${tokenId}`,
-              { tokenInfo, timestamp: Date.now() },
-              { ex: CACHE_EXPIRY }
+              CACHE_EXPIRY,
+              JSON.stringify({ tokenInfo, timestamp: Date.now() })
             );
           } else {
             batchFailedUpdates.push(tokenId);

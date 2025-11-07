@@ -2,8 +2,23 @@
 
 import { useState, useEffect } from "react";
 import styles from "./page.module.css";
-import { CHART_PERIODS } from "@/lib/priceService";
-import { TokenInfo } from "@/lib/tokenInfoService";
+
+const CHART_PERIODS: Record<string, string> = {
+  "1": "1 day",
+  "7": "1 week",
+  "30": "1 month",
+  "90": "3 months",
+  "180": "6 months",
+  "365": "1 year",
+};
+
+interface TokenInfo {
+  Name?: string;
+  Ticker?: string;
+  Logo?: string;
+  Denomination: number;
+  type?: "asset" | "collectible";
+}
 
 interface ChartDataProps {
   chartData: {

@@ -1,6 +1,6 @@
 import "./polyfill";
 import { fetchPriceFromCoingeckoApi } from "./priceService";
-import { redis } from "./redis";
+import { redisHelper } from "./redis";
 
 const AO_PROCESS_ID = "0syT13r0s0tgPmIed95bJnuSqaD29HQNN8D3ElLSrsc";
 const BOTEGA_API_KEY = process.env.BOTEGA_API_KEY as string;
@@ -55,7 +55,7 @@ export async function getBotegaPrices(
   // Try to get each token from cache
   const cachePromises = uniqueTokenIds.map(async (tokenId) => {
     const cacheKey = `botega:price:${tokenId}`;
-    const cachedPrice = await redis.get<CachedBotegaPriceData>(cacheKey);
+    const cachedPrice = await redisHelper.get<CachedBotegaPriceData>(cacheKey);
 
     if (cachedPrice && !forceRefresh) {
       const now = Date.now();
@@ -90,7 +90,7 @@ export async function getBotegaPrices(
           result[tokenId] = price;
           cacheInfo[tokenId] = { cachedAt: now };
 
-          return redis.set(
+          return redisHelper.set(
             cacheKey,
             {
               price,

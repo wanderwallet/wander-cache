@@ -1,6 +1,6 @@
 import { retryWithDelay } from "@/utils/retry.utils";
 import { customAoInstance, ourAoInstance } from "./aoconnect";
-import { redis } from "./redis";
+import { redisHelper } from "./redis";
 
 type TierWallet = {
   balance: string;
@@ -185,7 +185,7 @@ async function getWalletsTierInfoFromAo() {
 }
 
 export async function getWalletsTierInfo(addresses: string[]) {
-  const cachedWalletsTierInfo = await redis.get<CachedWalletsTierInfo>(
+  const cachedWalletsTierInfo = await redisHelper.get<CachedWalletsTierInfo>(
     "wallets-tier-info"
   );
 
@@ -201,7 +201,7 @@ export async function getWalletsTierInfo(addresses: string[]) {
       (snapshotTimestamp + 24 * 60 * 60 * 1000 - Date.now()) / 1000
     ); // 24 hours from snapshot
 
-    await redis.set(
+    await redisHelper.set(
       "wallets-tier-info",
       { walletsTierInfo, snapshotTimestamp, totalWallets },
       { ex: cacheAge }

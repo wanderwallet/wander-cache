@@ -2,15 +2,18 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 # Install dependencies
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml ./
 COPY patches ./patches
-RUN npm ci --prefer-offline && npm cache clean --force
+RUN pnpm install --frozen-lockfile
 
 # Copy rest of the files and build
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production
-RUN npm run build
+RUN pnpm run build
 
 # ---- Runner stage ----
 FROM node:22-alpine AS runner
