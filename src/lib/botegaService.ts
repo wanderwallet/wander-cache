@@ -205,23 +205,28 @@ async function fetchTokenPricesFromPermaswapApi(
 async function fetchBotegaPrices(
   tokenIds: string[]
 ): Promise<Record<string, number | null>> {
-  const priceSources: PriceSource[] = [
-    fetchTokenPricesFromBotegaApi,
-    fetchTokenPricesFromPermaswapApi,
-  ];
-
   let isAOPriceFetched = false;
+  const needsAO = tokenIds.includes(AO_PROCESS_ID);
+  const onlyAO = needsAO && tokenIds.length === 1;
 
   // Check if we only need AO price
-  if (tokenIds.length === 1 && tokenIds[0] === AO_PROCESS_ID) {
+  if (onlyAO) {
     const aoPrice = await fetchAOPrice();
     isAOPriceFetched = true;
     if (aoPrice) return { [AO_PROCESS_ID]: aoPrice };
   }
 
+  const aoPricePromise =
+    needsAO && !isAOPriceFetched ? fetchAOPrice() : Promise.resolve(null);
+
   let prices: Record<string, number | null> = Object.fromEntries(
     tokenIds.map((id) => [id, null])
   );
+
+  const priceSources: PriceSource[] = [
+    fetchTokenPricesFromBotegaApi,
+    fetchTokenPricesFromPermaswapApi,
+  ];
 
   for (const fetchPrices of priceSources) {
     try {
@@ -233,8 +238,8 @@ async function fetchBotegaPrices(
     } catch {}
   }
 
-  if (tokenIds.includes(AO_PROCESS_ID) && !isAOPriceFetched) {
-    const aoPrice = await fetchAOPrice();
+  if (needsAO && !isAOPriceFetched) {
+    const aoPrice = await aoPricePromise;
     if (aoPrice) prices[AO_PROCESS_ID] = aoPrice;
   }
 
