@@ -210,17 +210,20 @@ async function fetchBotegaPrices(
     fetchTokenPricesFromPermaswapApi,
   ];
 
+  let isAOPriceFetched = false;
+
   // Check if we only need AO price
   if (tokenIds.length === 1 && tokenIds[0] === AO_PROCESS_ID) {
     const aoPrice = await fetchAOPrice();
-    return { [AO_PROCESS_ID]: aoPrice };
+    isAOPriceFetched = true;
+    if (aoPrice) return { [AO_PROCESS_ID]: aoPrice };
   }
 
   for (const fetchPrices of priceSources) {
     try {
       const [success, prices] = await fetchPrices(tokenIds);
       if (success) {
-        if (tokenIds.includes(AO_PROCESS_ID)) {
+        if (tokenIds.includes(AO_PROCESS_ID) && !isAOPriceFetched) {
           const aoPrice = await fetchAOPrice();
           if (aoPrice) prices[AO_PROCESS_ID] = aoPrice;
         }
