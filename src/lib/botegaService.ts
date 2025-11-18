@@ -205,6 +205,24 @@ async function fetchTokenPricesFromPermaswapApi(
 async function fetchBotegaPrices(
   tokenIds: string[]
 ): Promise<Record<string, number | null>> {
+  let isAOPriceFetched = false;
+  const needsAO = tokenIds.includes(AO_PROCESS_ID);
+  const onlyAO = needsAO && tokenIds.length === 1;
+
+  // Check if we only need AO price
+  if (onlyAO) {
+    const aoPrice = await fetchAOPrice();
+    isAOPriceFetched = true;
+    if (aoPrice) return { [AO_PROCESS_ID]: aoPrice };
+  }
+
+  const aoPricePromise =
+    needsAO && !isAOPriceFetched ? fetchAOPrice() : Promise.resolve(null);
+
+  let prices: Record<string, number | null> = Object.fromEntries(
+    tokenIds.map((id) => [id, null])
+  );
+
   const priceSources: PriceSource[] = [
     fetchTokenPricesFromBotegaApi,
     fetchTokenPricesFromPermaswapApi,
@@ -212,19 +230,20 @@ async function fetchBotegaPrices(
 
   for (const fetchPrices of priceSources) {
     try {
-      const [success, prices] = await fetchPrices(tokenIds);
+      const [success, fetchedPrices] = await fetchPrices(tokenIds);
       if (success) {
-        if (tokenIds.includes(AO_PROCESS_ID) && !prices[AO_PROCESS_ID]) {
-          const aoPrice = await fetchAOPrice();
-          if (aoPrice) prices[AO_PROCESS_ID] = aoPrice;
-        }
-        return prices;
+        prices = fetchedPrices;
+        break;
       }
     } catch {}
   }
 
-  // All sources failed - return null prices
-  return Object.fromEntries(tokenIds.map((id) => [id, null]));
+  if (needsAO && !isAOPriceFetched) {
+    const aoPrice = await aoPricePromise;
+    if (aoPrice) prices[AO_PROCESS_ID] = aoPrice;
+  }
+
+  return prices;
 }
 
 /**
@@ -240,7 +259,7 @@ async function fetchAOPrice(): Promise<number | null> {
   for (const fetchPrice of priceSources) {
     try {
       const price = await fetchPrice();
-      if (price) return price;
+      if (price !== null && Number.isFinite(+price)) return +price;
     } catch {}
   }
 
