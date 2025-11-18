@@ -219,21 +219,26 @@ async function fetchBotegaPrices(
     if (aoPrice) return { [AO_PROCESS_ID]: aoPrice };
   }
 
+  let prices: Record<string, number | null> = Object.fromEntries(
+    tokenIds.map((id) => [id, null])
+  );
+
   for (const fetchPrices of priceSources) {
     try {
-      const [success, prices] = await fetchPrices(tokenIds);
+      const [success, fetchedPrices] = await fetchPrices(tokenIds);
       if (success) {
-        if (tokenIds.includes(AO_PROCESS_ID) && !isAOPriceFetched) {
-          const aoPrice = await fetchAOPrice();
-          if (aoPrice) prices[AO_PROCESS_ID] = aoPrice;
-        }
-        return prices;
+        prices = fetchedPrices;
+        break;
       }
     } catch {}
   }
 
-  // All sources failed - return null prices
-  return Object.fromEntries(tokenIds.map((id) => [id, null]));
+  if (tokenIds.includes(AO_PROCESS_ID) && !isAOPriceFetched) {
+    const aoPrice = await fetchAOPrice();
+    if (aoPrice) prices[AO_PROCESS_ID] = aoPrice;
+  }
+
+  return prices;
 }
 
 /**
