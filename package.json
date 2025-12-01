@@ -10,7 +10,8 @@
     "postinstall": "patch-package",
     "update-prices": "[ -f .env ] && set -a && . ./.env && set +a || true; curl -X GET \"http://${COOLIFY_SERVICE_NAME:-localhost}:3000/api/cron/update-prices\" -H \"Authorization: Bearer ${CRON_SECRET}\"",
     "process-transak-savings": "[ -f .env ] && set -a && . ./.env && set +a || true; curl -X GET \"http://${COOLIFY_SERVICE_NAME:-localhost}:3000/api/cron/process-transak-savings\" -H \"Authorization: Bearer ${CRON_SECRET}\"",
-    "update-flp-tokens": "[ -f .env ] && set -a && . ./.env && set +a || true; curl -X GET \"http://${COOLIFY_SERVICE_NAME:-localhost}:3000/api/cron/update-flp-tokens\" -H \"Authorization: Bearer ${CRON_SECRET}\""
+    "update-flp-tokens": "[ -f .env ] && set -a && . ./.env && set +a || true; curl -X GET \"http://${COOLIFY_SERVICE_NAME:-localhost}:3000/api/cron/update-flp-tokens\" -H \"Authorization: Bearer ${CRON_SECRET}\"",
+    "vesting-trigger": "[ -f .env ] && set -a && . ./.env && set +a || true; curl -X GET \"http://${COOLIFY_SERVICE_NAME:-localhost}:3000/api/cron/vesting-trigger\" -H \"Authorization: Bearer ${CRON_SECRET}\""
   },
   "dependencies": {
     "@permaweb/aoconnect": "^0.0.77",
