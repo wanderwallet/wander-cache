@@ -43,7 +43,6 @@ export interface TokenInfoResponse {
 }
 
 const BATCH_SIZE = 100;
-const CACHE_EXPIRY = 86400; // 24 hours in seconds
 
 /**
  * Get token info with caching
@@ -112,7 +111,7 @@ function getTokenInfoFromData(res: AoResponse, id: string): TokenInfo {
           return {
             Ticker,
             Name,
-            Denomination: Number(Denomination || 0),
+            Denomination: Number(Denomination) || 0,
             Logo,
             type,
           };
@@ -151,7 +150,7 @@ function getTokenInfoFromData(res: AoResponse, id: string): TokenInfo {
     return {
       Name,
       Ticker,
-      Denomination: Number(Denomination || 0),
+      Denomination: Number(Denomination) || 0,
       Logo,
       type: Transferable || Ticker === "ATOMIC" ? "collectible" : "asset",
     };
@@ -177,11 +176,7 @@ export async function getTokenInfoFromAo(
 
     if (save) {
       // Cache the result
-      await redis.set(
-        cacheKey,
-        { tokenInfo, timestamp: Date.now() },
-        { ex: CACHE_EXPIRY }
-      );
+      await redis.set(cacheKey, { tokenInfo, timestamp: Date.now() });
     }
 
     return tokenInfo;
@@ -210,7 +205,7 @@ export async function updateAllTokenInfos(
   const limit = pLimit(concurrency);
 
   try {
-    let cursor = 0;
+    let cursor = "0";
     const failedUpdates: string[] = [];
 
     // Process tokens in batches
@@ -219,11 +214,11 @@ export async function updateAllTokenInfos(
         match: "tokenInfo:*",
         count: BATCH_SIZE,
       });
-      cursor = parseInt(nextCursor, 10);
+      cursor = nextCursor;
 
       const batchTokenIds = keys.map((key) => key.replace("tokenInfo:", ""));
       if (batchTokenIds.length === 0) {
-        if (cursor === 0) break;
+        if (+cursor === 0) break;
         continue;
       }
 
@@ -262,11 +257,10 @@ export async function updateAllTokenInfos(
           const { success, tokenId, tokenInfo, error } = result.value;
           if (success && tokenInfo) {
             results[tokenId] = tokenInfo;
-            pipeline.set(
-              `tokenInfo:${tokenId}`,
-              { tokenInfo, timestamp: Date.now() },
-              { ex: CACHE_EXPIRY }
-            );
+            pipeline.set(`tokenInfo:${tokenId}`, {
+              tokenInfo,
+              timestamp: Date.now(),
+            });
           } else {
             batchFailedUpdates.push(tokenId);
             console.error(
@@ -285,7 +279,7 @@ export async function updateAllTokenInfos(
 
       failedUpdates.push(...batchFailedUpdates);
 
-      if (cursor === 0) break;
+      if (+cursor === 0) break;
     }
 
     // Log final results
