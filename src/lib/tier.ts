@@ -1,14 +1,23 @@
 import { retryWithDelay } from "@/utils/retry.utils";
-import { customAoInstance, ourAoInstance } from "./aoconnect";
+import { ourAoInstance } from "./aoconnect";
 import { redis } from "./redis";
+import { isArweaveAddress } from "@/utils/address.utils";
 
-type TierWallet = {
+interface TierWalletBase {
   balance: string;
   rank: number | "";
   tier: number;
   progress: number;
+}
+
+type TierWallet = TierWalletBase & {
   snapshotTimestamp: number;
   totalHolders: number;
+};
+
+type TierWalletHB = TierWalletBase & {
+  "snapshot-timestamp": number;
+  "total-holders": number;
 };
 
 type WalletsTierInfo = Record<string, TierWallet>;
@@ -78,6 +87,10 @@ const Tiers = [
   },
 ];
 
+const TIER_PROCESS_ID = "rkAezEIgacJZ_dVuZHOKJR8WKpSDqLGfgPJrs_Es7CA";
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 1 day in milliseconds
+
 function getTierThresholds(totalWallets: number) {
   const tierThresholds = [];
 
@@ -135,53 +148,110 @@ function getWalletTier(walletRank: number, totalWallets: number): number {
 }
 
 async function getWalletsTierInfoFromAo() {
-  const { wallets, snapshotTimestamp } =
-    await retryWithDelay<WalletsTierInfoFromAo>(async (attempt) => {
-      const instance = attempt % 2 === 0 ? customAoInstance : ourAoInstance;
+  try {
+    const response = await fetch(
+      `https://hyperbeam.ar/${TIER_PROCESS_ID}~process@1.0/now/wallets-tier-info/~json@1.0/serialize/?bundle`
+    );
+    if (!response.ok) {
+      throw new Error("Failed to fetch wallets tier info from HB");
+    }
+    const data = (await response.json()) as Record<string, TierWalletHB>;
 
-      const result = await instance.dryrun({
-        process: "rkAezEIgacJZ_dVuZHOKJR8WKpSDqLGfgPJrs_Es7CA",
-        tags: [{ name: "Action", value: "Get-Wallets" }],
+    let firstWallet: TierWallet | null = null;
+    const walletsTierInfo: Record<string, TierWallet> = {};
+
+    for (const [addr, wallet] of Object.entries(data)) {
+      if (isArweaveAddress(addr)) {
+        const transformedWallet: TierWallet = {
+          balance: wallet.balance,
+          rank: wallet.rank,
+          tier: wallet.tier,
+          progress: wallet.progress,
+          snapshotTimestamp: wallet["snapshot-timestamp"],
+          totalHolders: wallet["total-holders"],
+        };
+        if (!firstWallet) {
+          firstWallet = transformedWallet;
+        }
+        walletsTierInfo[addr] = transformedWallet;
+      }
+    }
+
+    if (!firstWallet) {
+      throw new Error("No valid wallet data found");
+    }
+
+    const snapshotTimestamp = firstWallet.snapshotTimestamp;
+    const totalWallets = firstWallet.totalHolders;
+    const actualTotalWallets = Object.keys(walletsTierInfo).length;
+
+    if (!snapshotTimestamp || !totalWallets) {
+      throw new Error("Invalid response from HB");
+    }
+
+    if (actualTotalWallets !== totalWallets) {
+      throw new Error("Total wallets mismatch");
+    }
+
+    // Ensure snapshot is not older than 1 day
+    const timestampDiff = Date.now() - snapshotTimestamp;
+    if (timestampDiff > ONE_DAY_MS) {
+      throw new Error("Snapshot data is too old - needs refresh");
+    }
+
+    return {
+      walletsTierInfo,
+      snapshotTimestamp,
+      totalWallets,
+    };
+  } catch (error) {
+    console.error("Fallback to dryrun due to HB fetch error: ", error);
+    const { wallets, snapshotTimestamp } =
+      await retryWithDelay<WalletsTierInfoFromAo>(async () => {
+        const result = await ourAoInstance.dryrun({
+          process: TIER_PROCESS_ID,
+          tags: [{ name: "Action", value: "Get-Wallets" }],
+        });
+
+        const data = result?.Messages?.[0]?.Data;
+        if (!data) {
+          throw new Error("No data returned from AO");
+        }
+
+        const parsedData = JSON.parse(data);
+        if (!parsedData?.wallets || !parsedData?.snapshotTimestamp) {
+          throw new Error("Invalid response from AO");
+        }
+
+        return parsedData;
       });
 
-      const data = result?.Messages?.[0]?.Data;
-      if (!data) {
-        throw new Error("No data returned from AO");
-      }
+    const totalWallets = wallets.length;
 
-      const parsedData = JSON.parse(data);
-      if (!parsedData?.wallets || !parsedData?.snapshotTimestamp) {
-        throw new Error("Invalid response from AO");
-      }
+    const walletsTierInfo = wallets.reduce(
+      (acc: Record<string, TierWallet>, wallet, index) => {
+        const walletRank = index + 1;
+        const tier = getWalletTier(walletRank, totalWallets);
+        const progress = calculateTierProgressPercent(walletRank, totalWallets);
 
-      return parsedData;
-    });
+        const walletData = {
+          balance: wallet.balance,
+          rank: walletRank,
+          tier,
+          progress,
+          snapshotTimestamp,
+          totalHolders: totalWallets,
+        };
 
-  const totalWallets = wallets.length;
+        acc[wallet.address] = walletData;
 
-  const walletsTierInfo = wallets.reduce(
-    (acc: Record<string, TierWallet>, wallet, index) => {
-      const walletRank = index + 1;
-      const tier = getWalletTier(walletRank, totalWallets);
-      const progress = calculateTierProgressPercent(walletRank, totalWallets);
+        return acc;
+      },
+      {}
+    );
 
-      const walletData = {
-        balance: wallet.balance,
-        rank: walletRank,
-        tier,
-        progress,
-        snapshotTimestamp,
-        totalHolders: totalWallets,
-      };
-
-      acc[wallet.address] = walletData;
-
-      return acc;
-    },
-    {}
-  );
-
-  return { walletsTierInfo, snapshotTimestamp, totalWallets };
+    return { walletsTierInfo, snapshotTimestamp, totalWallets };
+  }
 }
 
 export async function getWalletsTierInfo(addresses: string[]) {
