@@ -29,18 +29,18 @@ const baseTags = [
 export async function fetchDryrun({
   process,
   tags,
-  data,
-  anchor,
-  Id,
-  Owner,
+  data = "1234",
+  anchor = "0",
+  Id = "1234",
+  Owner = "1234",
   cuUrl = DEFAULT_CU_URL,
 }: DryrunInput): Promise<DryRunResult> {
   const body = {
-    Id: Id || "1234",
+    Id,
     Target: process,
-    Owner: Owner || "1234",
-    Anchor: anchor || "0",
-    Data: data || "1234",
+    Owner,
+    Anchor: anchor,
+    Data: data,
     Tags: [...baseTags, ...tags],
   };
   const response = await fetch(`${cuUrl}/dry-run?process-id=${process}`, {
