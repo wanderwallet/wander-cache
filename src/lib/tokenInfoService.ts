@@ -193,38 +193,85 @@ interface UpdateResult {
   error?: string;
 }
 
+function fastHash(str: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash =
+      (hash +
+        (hash << 1) +
+        (hash << 4) +
+        (hash << 7) +
+        (hash << 8) +
+        (hash << 24)) >>>
+      0;
+  }
+  // Final avalanche
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b) >>> 0;
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35) >>> 0;
+  hash ^= hash >>> 16;
+  return hash >>> 0;
+}
+
+function getChunk(tokenId: string, numChunks: number): number {
+  return fastHash(tokenId) % numChunks;
+}
+
+// Get the day of year
+function getDayOfYear(): number {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 /**
  * Update token info for all tokens in Redis cache
+ * Only updates tokens in the chunk corresponding to the current day
  */
 export async function updateAllTokenInfos(
-  maxRetries: number = 3,
-  retryDelay: number = 1000,
-  concurrency: number = 10
+  maxRetries = 3,
+  retryDelay = 1000,
+  concurrency = 10,
+  numChunks = 4
 ): Promise<Record<string, TokenInfo>> {
   const results: Record<string, TokenInfo> = {};
   const limit = pLimit(concurrency);
 
+  const dayOfYear = getDayOfYear();
+  const todayChunk = dayOfYear % numChunks;
+
+  console.log(
+    `Updating token infos for chunk ${todayChunk}/${numChunks} (day ${dayOfYear})`
+  );
+
   try {
     let cursor = "0";
     const failedUpdates: string[] = [];
+    let totalTokens = 0;
+    let processedTokens = 0;
 
-    // Process tokens in batches
-    while (true) {
+    do {
       const [nextCursor, keys] = await redis.scan(cursor, {
         match: "tokenInfo:*",
         count: BATCH_SIZE,
       });
-      cursor = nextCursor;
+      cursor = String(nextCursor);
 
-      const batchTokenIds = keys.map((key) => key.replace("tokenInfo:", ""));
-      if (batchTokenIds.length === 0) {
-        if (+cursor === 0) break;
-        continue;
-      }
+      const batchTokenIds = keys.map((k) => k.slice("tokenInfo:".length));
+      totalTokens += batchTokenIds.length;
 
-      // Process batch with concurrency control
+      // Filter tokens for today's chunk
+      const tokensToProcess = batchTokenIds.filter(
+        (id) => getChunk(id, numChunks) === todayChunk
+      );
+      processedTokens += tokensToProcess.length;
+
+      if (tokensToProcess.length === 0) continue;
+
       const batchResults = await Promise.allSettled(
-        batchTokenIds.map((tokenId) =>
+        tokensToProcess.map((tokenId) =>
           limit(async () => {
             try {
               const tokenInfo = await pRetry(
@@ -248,11 +295,9 @@ export async function updateAllTokenInfos(
         )
       );
 
-      // Process batch results
-      const batchFailedUpdates: string[] = [];
+      // Write to Redis pipeline
       const pipeline = redis.pipeline();
-
-      batchResults.forEach((result) => {
+      for (const result of batchResults) {
         if (result.status === "fulfilled") {
           const { success, tokenId, tokenInfo, error } = result.value;
           if (success && tokenInfo) {
@@ -262,45 +307,36 @@ export async function updateAllTokenInfos(
               timestamp: Date.now(),
             });
           } else {
-            batchFailedUpdates.push(tokenId);
-            console.error(
-              `Failed to update token info for ${tokenId}: ${error}`
-            );
+            failedUpdates.push(tokenId);
+            console.error(`Failed to update ${tokenId}: ${error}`);
           }
         }
-      });
-
-      // Execute pipeline for cache updates
+      }
       try {
         await pipeline.exec();
       } catch (error) {
         console.error("Error updating cache:", error);
       }
+    } while (cursor !== "0");
 
-      failedUpdates.push(...batchFailedUpdates);
-
-      if (+cursor === 0) break;
-    }
-
-    // Log final results
-    const successCount = Object.keys(results).length;
-    const failureCount = failedUpdates.length;
     console.log(
-      `Update completed: ${successCount} succeeded, ${failureCount} failed`
+      `Chunk ${todayChunk}/${numChunks} update completed: ${
+        Object.keys(results).length
+      } succeeded, ${
+        failedUpdates.length
+      } failed (processed ${processedTokens}/${totalTokens} tokens)`
     );
 
     if (failedUpdates.length > 0) {
       console.error(
-        `Failed to update token info after ${maxRetries} attempts for: ${failedUpdates.join(
-          ", "
-        )}`
+        `Failed after ${maxRetries} retries: ${failedUpdates.join(", ")}`
       );
     }
 
     return results;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
     console.error(`Failed to update token infos: ${errorMessage}`);
-    throw error;
+    throw err;
   }
 }
