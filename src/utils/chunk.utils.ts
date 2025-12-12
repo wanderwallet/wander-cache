@@ -1,3 +1,5 @@
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Fast hash function using the FNV-1a algorithm
  * @param str - The string to hash
@@ -26,16 +28,6 @@ function fastHash(str: string): number {
 }
 
 /**
- * Get the day of year
- * @returns The day of year
- */
-function getDayOfYear(): number {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-/**
  * Get the chunk for a token ID
  * @param tokenId - The token ID to get the chunk for
  * @param numChunks - The number of chunks to divide the token IDs into
@@ -51,7 +43,6 @@ export function getTokenChunk(tokenId: string, numChunks: number): number {
  * @returns The chunk for the current day
  */
 export function getTodayChunk(numChunks: number): number {
-  const dayOfYear = getDayOfYear();
-  const todayChunk = dayOfYear % numChunks;
-  return todayChunk;
+  const today = Math.floor(Date.now() / ONE_DAY_MS);
+  return today % numChunks;
 }
