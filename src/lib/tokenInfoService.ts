@@ -3,6 +3,7 @@ import { aoInstance } from "./aoconnect";
 import { redis } from "./redis";
 import pLimit from "p-limit";
 import pRetry from "p-retry";
+import { getTokenChunk, getTodayChunk } from "@/utils/chunk.utils";
 
 export interface TokenInfo {
   Name?: string;
@@ -43,7 +44,6 @@ export interface TokenInfoResponse {
 }
 
 const BATCH_SIZE = 100;
-const CACHE_EXPIRY = 86400; // 24 hours in seconds
 
 /**
  * Get token info with caching
@@ -112,7 +112,7 @@ function getTokenInfoFromData(res: AoResponse, id: string): TokenInfo {
           return {
             Ticker,
             Name,
-            Denomination: Number(Denomination || 0),
+            Denomination: Number(Denomination) || 0,
             Logo,
             type,
           };
@@ -151,7 +151,7 @@ function getTokenInfoFromData(res: AoResponse, id: string): TokenInfo {
     return {
       Name,
       Ticker,
-      Denomination: Number(Denomination || 0),
+      Denomination: Number(Denomination) || 0,
       Logo,
       type: Transferable || Ticker === "ATOMIC" ? "collectible" : "asset",
     };
@@ -177,11 +177,7 @@ export async function getTokenInfoFromAo(
 
     if (save) {
       // Cache the result
-      await redis.set(
-        cacheKey,
-        { tokenInfo, timestamp: Date.now() },
-        { ex: CACHE_EXPIRY }
-      );
+      await redis.set(cacheKey, { tokenInfo, timestamp: Date.now() });
     }
 
     return tokenInfo;
@@ -200,36 +196,47 @@ interface UpdateResult {
 
 /**
  * Update token info for all tokens in Redis cache
+ * Only updates tokens in the chunk corresponding to the current day
  */
 export async function updateAllTokenInfos(
-  maxRetries: number = 3,
-  retryDelay: number = 1000,
-  concurrency: number = 10
+  maxRetries = 3,
+  retryDelay = 1000,
+  concurrency = 10,
+  numChunks = 4
 ): Promise<Record<string, TokenInfo>> {
   const results: Record<string, TokenInfo> = {};
   const limit = pLimit(concurrency);
 
-  try {
-    let cursor = 0;
-    const failedUpdates: string[] = [];
+  const todayChunk = getTodayChunk(numChunks);
 
-    // Process tokens in batches
-    while (true) {
+  console.log(`Updating token infos for chunk ${todayChunk}/${numChunks}`);
+
+  try {
+    let cursor = "0";
+    const failedUpdates: string[] = [];
+    let totalTokens = 0;
+    let processedTokens = 0;
+
+    do {
       const [nextCursor, keys] = await redis.scan(cursor, {
         match: "tokenInfo:*",
         count: BATCH_SIZE,
       });
-      cursor = parseInt(nextCursor, 10);
+      cursor = String(nextCursor);
 
-      const batchTokenIds = keys.map((key) => key.replace("tokenInfo:", ""));
-      if (batchTokenIds.length === 0) {
-        if (cursor === 0) break;
-        continue;
-      }
+      const batchTokenIds = keys.map((k) => k.slice("tokenInfo:".length));
+      totalTokens += batchTokenIds.length;
 
-      // Process batch with concurrency control
+      // Filter tokens for today's chunk
+      const tokensToProcess = batchTokenIds.filter(
+        (id) => getTokenChunk(id, numChunks) === todayChunk
+      );
+      processedTokens += tokensToProcess.length;
+
+      if (tokensToProcess.length === 0) continue;
+
       const batchResults = await Promise.allSettled(
-        batchTokenIds.map((tokenId) =>
+        tokensToProcess.map((tokenId) =>
           limit(async () => {
             try {
               const tokenInfo = await pRetry(
@@ -253,60 +260,48 @@ export async function updateAllTokenInfos(
         )
       );
 
-      // Process batch results
-      const batchFailedUpdates: string[] = [];
+      // Write to Redis pipeline
       const pipeline = redis.pipeline();
-
-      batchResults.forEach((result) => {
+      for (const result of batchResults) {
         if (result.status === "fulfilled") {
           const { success, tokenId, tokenInfo, error } = result.value;
           if (success && tokenInfo) {
             results[tokenId] = tokenInfo;
-            pipeline.set(
-              `tokenInfo:${tokenId}`,
-              { tokenInfo, timestamp: Date.now() },
-              { ex: CACHE_EXPIRY }
-            );
+            pipeline.set(`tokenInfo:${tokenId}`, {
+              tokenInfo,
+              timestamp: Date.now(),
+            });
           } else {
-            batchFailedUpdates.push(tokenId);
-            console.error(
-              `Failed to update token info for ${tokenId}: ${error}`
-            );
+            failedUpdates.push(tokenId);
+            console.error(`Failed to update ${tokenId}: ${error}`);
           }
         }
-      });
-
-      // Execute pipeline for cache updates
+      }
       try {
         await pipeline.exec();
       } catch (error) {
         console.error("Error updating cache:", error);
       }
+    } while (cursor !== "0");
 
-      failedUpdates.push(...batchFailedUpdates);
-
-      if (cursor === 0) break;
-    }
-
-    // Log final results
-    const successCount = Object.keys(results).length;
-    const failureCount = failedUpdates.length;
     console.log(
-      `Update completed: ${successCount} succeeded, ${failureCount} failed`
+      `Chunk ${todayChunk}/${numChunks} update completed: ${
+        Object.keys(results).length
+      } succeeded, ${
+        failedUpdates.length
+      } failed (processed ${processedTokens}/${totalTokens} tokens)`
     );
 
     if (failedUpdates.length > 0) {
       console.error(
-        `Failed to update token info after ${maxRetries} attempts for: ${failedUpdates.join(
-          ", "
-        )}`
+        `Failed after ${maxRetries} retries: ${failedUpdates.join(", ")}`
       );
     }
 
     return results;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
     console.error(`Failed to update token infos: ${errorMessage}`);
-    throw error;
+    throw err;
   }
 }
