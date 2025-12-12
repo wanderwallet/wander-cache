@@ -3,6 +3,7 @@ import { aoInstance } from "./aoconnect";
 import { redis } from "./redis";
 import pLimit from "p-limit";
 import pRetry from "p-retry";
+import { getTokenChunk, getTodayChunk } from "@/utils/chunk.utils";
 
 export interface TokenInfo {
   Name?: string;
@@ -193,39 +194,6 @@ interface UpdateResult {
   error?: string;
 }
 
-function fastHash(str: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash =
-      (hash +
-        (hash << 1) +
-        (hash << 4) +
-        (hash << 7) +
-        (hash << 8) +
-        (hash << 24)) >>>
-      0;
-  }
-  // Final avalanche
-  hash ^= hash >>> 16;
-  hash = Math.imul(hash, 0x85ebca6b) >>> 0;
-  hash ^= hash >>> 13;
-  hash = Math.imul(hash, 0xc2b2ae35) >>> 0;
-  hash ^= hash >>> 16;
-  return hash >>> 0;
-}
-
-function getChunk(tokenId: string, numChunks: number): number {
-  return fastHash(tokenId) % numChunks;
-}
-
-// Get the day of year
-function getDayOfYear(): number {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-}
-
 /**
  * Update token info for all tokens in Redis cache
  * Only updates tokens in the chunk corresponding to the current day
@@ -239,12 +207,9 @@ export async function updateAllTokenInfos(
   const results: Record<string, TokenInfo> = {};
   const limit = pLimit(concurrency);
 
-  const dayOfYear = getDayOfYear();
-  const todayChunk = dayOfYear % numChunks;
+  const todayChunk = getTodayChunk(numChunks);
 
-  console.log(
-    `Updating token infos for chunk ${todayChunk}/${numChunks} (day ${dayOfYear})`
-  );
+  console.log(`Updating token infos for chunk ${todayChunk}/${numChunks}`);
 
   try {
     let cursor = "0";
@@ -264,7 +229,7 @@ export async function updateAllTokenInfos(
 
       // Filter tokens for today's chunk
       const tokensToProcess = batchTokenIds.filter(
-        (id) => getChunk(id, numChunks) === todayChunk
+        (id) => getTokenChunk(id, numChunks) === todayChunk
       );
       processedTokens += tokensToProcess.length;
 
