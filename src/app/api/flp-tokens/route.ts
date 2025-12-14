@@ -21,8 +21,13 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
 
-    // Cache for 1 hour
-    response.headers.set("Cache-Control", "public, max-age=3600");
+    // Caching strategy:
+    // - Browser: 1h
+    // - CDN: 24h + 1h stale-while-revalidate
+    response.headers.set(
+      "Cache-Control",
+      "public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600"
+    );
     response.headers.set("ETag", currentETag);
 
     return response;

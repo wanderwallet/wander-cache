@@ -1,4 +1,4 @@
-import { dataosAoInstance } from "@/lib/aoconnect";
+import { DATAOS_CU_URL, fetchDryrun } from "@/lib/aoconnect";
 import { redis } from "./redis";
 import { retryWithDelay } from "@/utils/retry.utils";
 
@@ -244,9 +244,10 @@ const FLP_REGISTRY_PROCESS_ID = "It-_AKlEfARBmJdbJew1nG9_hIaZt0t20wQc28mFGBE";
 async function getTotalAODelegationByProject(): Promise<DelegationRecord> {
   try {
     const result = await retryWithDelay(() =>
-      dataosAoInstance.dryrun({
+      fetchDryrun({
         process: FLP_AO_DELEGATION_TRACKER_PROCESS_ID,
         tags: [{ name: "Action", value: "Get-Total-Delegated-AO-By-Project" }],
+        cuUrl: DATAOS_CU_URL,
       })
     );
 
@@ -263,9 +264,10 @@ async function getTotalAODelegationByProject(): Promise<DelegationRecord> {
  */
 async function getFlpTokensFromAo(): Promise<FlpToken[]> {
   const result = await retryWithDelay(() =>
-    dataosAoInstance.dryrun({
+    fetchDryrun({
       process: FLP_REGISTRY_PROCESS_ID,
       tags: [{ name: "Action", value: "Get-FLPs" }],
+      cuUrl: DATAOS_CU_URL,
     })
   );
 
