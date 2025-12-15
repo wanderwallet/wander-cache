@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   try {
     const widgetUrl = await createTransakWidgetUrl(
       requestJson.widgetParams,
-      request.nextUrl.host || "wander.app"
+      "wander.app"
     );
     return NextResponse.json({ widgetUrl });
   } catch (error: unknown) {
