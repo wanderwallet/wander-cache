@@ -1,6 +1,10 @@
 import { DATAOS_CU_URL, fetchDryrun } from "@/lib/aoconnect";
 import { redis } from "./redis";
 import { retryWithDelay } from "@/utils/retry.utils";
+import {
+  ARIO_PROCESS_ID,
+  ARIO_PROCESS_LOGO,
+} from "@/constants/tokens.constants";
 
 interface RawFlpToken {
   flp_token_name: string;
@@ -156,12 +160,12 @@ const defaultFlpTokens = [
     autoClaim: true,
   },
   {
-    id: "qNvAoz0TgcH7DMg8BCVn8jF32QH5L6T29VjHxhHqqGE",
+    id: ARIO_PROCESS_ID,
     flpId: "rW7h9J9jE2Xp36y4SKn2HgZaOuzRmbMfBRPwrFFifHE",
     name: "AR.IO",
     ticker: "ARIO",
     denomination: 12,
-    logo: "Sie_26dvgyok0PZD_-iQAFOhOd5YxDTkczOLoqTTL_A",
+    logo: ARIO_PROCESS_LOGO,
     autoClaim: false,
   },
   {
@@ -248,7 +252,7 @@ async function getTotalAODelegationByProject(): Promise<DelegationRecord> {
         process: FLP_AO_DELEGATION_TRACKER_PROCESS_ID,
         tags: [{ name: "Action", value: "Get-Total-Delegated-AO-By-Project" }],
         cuUrl: DATAOS_CU_URL,
-      })
+      }),
     );
 
     const data = result?.Messages[0]?.Data ?? "{}";
@@ -268,7 +272,7 @@ async function getFlpTokensFromAo(): Promise<FlpToken[]> {
       process: FLP_REGISTRY_PROCESS_ID,
       tags: [{ name: "Action", value: "Get-FLPs" }],
       cuUrl: DATAOS_CU_URL,
-    })
+    }),
   );
 
   const data = result?.Messages[0]?.Data ?? "{}";
@@ -284,7 +288,10 @@ async function getFlpTokensFromAo(): Promise<FlpToken[]> {
         name: token.flp_token_name,
         ticker: token.flp_token_ticker,
         denomination: +token.flp_token_denomination,
-        logo: token.flp_token_logo,
+        logo:
+          token.flp_token_process === ARIO_PROCESS_ID
+            ? ARIO_PROCESS_LOGO
+            : token.flp_token_logo,
         autoClaim: !MANUAL_CLAIMABLE_FLP_IDS.has(token.flp_id),
       };
     })
@@ -294,7 +301,7 @@ async function getFlpTokensFromAo(): Promise<FlpToken[]> {
         !!token.name &&
         !!token.ticker &&
         !isNaN(token.denomination) &&
-        !TEST_TOKEN_FLP_IDS.has(token.flpId)
+        !TEST_TOKEN_FLP_IDS.has(token.flpId),
     )
     .sort((a: FlpToken, b: FlpToken): number => {
       if (a.id === WNDR_PROCESS_ID) return -1;

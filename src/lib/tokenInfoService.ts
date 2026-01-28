@@ -1,9 +1,10 @@
 import "./polyfill";
-import { aoInstance } from "./aoconnect";
+import { aoInstance, ardriveAoInstance } from "./aoconnect";
 import { redis } from "./redis";
 import pLimit from "p-limit";
 import pRetry from "p-retry";
 import { getTokenChunk, getTodayChunk } from "@/utils/chunk.utils";
+import { ARIO_PROCESS_ID } from "@/constants/tokens.constants";
 
 export interface TokenInfo {
   Name?: string;
@@ -50,7 +51,7 @@ const BATCH_SIZE = 100;
  */
 export async function getTokenInfo(
   tokenId: string,
-  save: boolean = true
+  save: boolean = true,
 ): Promise<TokenInfoResponse> {
   const cacheKey = `tokenInfo:${tokenId}`;
 
@@ -86,7 +87,7 @@ export async function getTokenInfo(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Failed to fetch token info for ${tokenId}: ${errorMessage}`
+      `Failed to fetch token info for ${tokenId}: ${errorMessage}`,
     );
   }
 }
@@ -146,7 +147,7 @@ function getTokenInfoFromData(res: AoResponse, id: string): TokenInfo {
       }
     }
 
-    if (!Ticker && !Name) continue;
+    if (!Ticker || !Name) continue;
 
     return {
       Name,
@@ -162,13 +163,15 @@ function getTokenInfoFromData(res: AoResponse, id: string): TokenInfo {
 
 export async function getTokenInfoFromAo(
   tokenId: string,
-  save: boolean = true
+  save: boolean = true,
 ): Promise<TokenInfo> {
   const cacheKey = `tokenInfo:${tokenId}`;
 
   try {
     // query ao
-    const res = await aoInstance.dryrun({
+    const customAoInstance =
+      tokenId === ARIO_PROCESS_ID ? ardriveAoInstance : aoInstance;
+    const res = await customAoInstance.dryrun({
       process: tokenId,
       tags: [{ name: "Action", value: "Info" }],
     });
@@ -202,7 +205,7 @@ export async function updateAllTokenInfos(
   maxRetries = 3,
   retryDelay = 1000,
   concurrency = 10,
-  numChunks = 4
+  numChunks = 4,
 ): Promise<Record<string, TokenInfo>> {
   const results: Record<string, TokenInfo> = {};
   const limit = pLimit(concurrency);
@@ -229,7 +232,7 @@ export async function updateAllTokenInfos(
 
       // Filter tokens for today's chunk
       const tokensToProcess = batchTokenIds.filter(
-        (id) => getTokenChunk(id, numChunks) === todayChunk
+        (id) => getTokenChunk(id, numChunks) === todayChunk,
       );
       processedTokens += tokensToProcess.length;
 
@@ -246,7 +249,7 @@ export async function updateAllTokenInfos(
                   factor: 2,
                   minTimeout: retryDelay,
                   maxTimeout: retryDelay * 3,
-                }
+                },
               );
               return { success: true, tokenId, tokenInfo } as UpdateResult;
             } catch (error) {
@@ -256,8 +259,8 @@ export async function updateAllTokenInfos(
                 error: error instanceof Error ? error.message : String(error),
               } as UpdateResult;
             }
-          })
-        )
+          }),
+        ),
       );
 
       // Write to Redis pipeline
@@ -289,12 +292,12 @@ export async function updateAllTokenInfos(
         Object.keys(results).length
       } succeeded, ${
         failedUpdates.length
-      } failed (processed ${processedTokens}/${totalTokens} tokens)`
+      } failed (processed ${processedTokens}/${totalTokens} tokens)`,
     );
 
     if (failedUpdates.length > 0) {
       console.error(
-        `Failed after ${maxRetries} retries: ${failedUpdates.join(", ")}`
+        `Failed after ${maxRetries} retries: ${failedUpdates.join(", ")}`,
       );
     }
 

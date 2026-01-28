@@ -9,10 +9,15 @@ export const DEFAULT_CU_URL = "https://cu.ao-testnet.xyz";
 const CU_URL = process.env.CU_URL || DEFAULT_CU_URL;
 export const OUR_CU_URL = "https://gateway.ar";
 export const DATAOS_CU_URL = "https://cu-af.dataos.so";
+export const ARDRIVE_CU_URL = "https://cu.ardrive.io";
 
 export const aoInstance = connect({ MODE: "legacy" });
 export const customAoInstance = connect({ MODE: "legacy", CU_URL });
 export const ourAoInstance = connect({ MODE: "legacy", CU_URL: OUR_CU_URL });
+export const ardriveAoInstance = connect({
+  MODE: "legacy",
+  CU_URL: ARDRIVE_CU_URL,
+});
 export const dataosAoInstance = connect({
   MODE: "legacy",
   CU_URL: DATAOS_CU_URL,
