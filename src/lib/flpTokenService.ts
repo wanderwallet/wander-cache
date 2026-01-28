@@ -160,12 +160,12 @@ const defaultFlpTokens = [
     autoClaim: true,
   },
   {
-    id: "qNvAoz0TgcH7DMg8BCVn8jF32QH5L6T29VjHxhHqqGE",
+    id: ARIO_PROCESS_ID,
     flpId: "rW7h9J9jE2Xp36y4SKn2HgZaOuzRmbMfBRPwrFFifHE",
     name: "AR.IO",
     ticker: "ARIO",
     denomination: 12,
-    logo: "WMLnh8pQL-UIXZMpdU2NUIriHfcFB5Bc49V8jTHjsZc",
+    logo: ARIO_PROCESS_LOGO,
     autoClaim: false,
   },
   {
