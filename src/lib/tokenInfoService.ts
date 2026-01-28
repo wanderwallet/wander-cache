@@ -147,7 +147,7 @@ function getTokenInfoFromData(res: AoResponse, id: string): TokenInfo {
       }
     }
 
-    if (!Ticker && !Name) continue;
+    if (!Ticker || !Name) continue;
 
     return {
       Name,
