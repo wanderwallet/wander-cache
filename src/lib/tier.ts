@@ -91,9 +91,10 @@ function getTierThresholds(totalWallets: number) {
           tierIndex == TierTypes.PRIME
             ? 1
             : tierIndex > TierTypes.PRIME
-            ? Math.ceil((Tiers[i - 1].thresholdPercent * totalWallets) / 100) +
-              1
-            : 1,
+              ? Math.ceil(
+                  (Tiers[i - 1].thresholdPercent * totalWallets) / 100,
+                ) + 1
+              : 1,
       };
       tierThresholds.push(tierThreshold);
     }
@@ -110,12 +111,12 @@ function getTierThresholds(totalWallets: number) {
  */
 function calculateTierProgressPercent(
   walletRank: number,
-  totalWallets: number
+  totalWallets: number,
 ): number {
   if (walletRank <= 0 || totalWallets <= 0) return 0;
   return (
     Math.floor(
-      ((totalWallets - walletRank + 1) / totalWallets) * 100 * Math.pow(10, 6)
+      ((totalWallets - walletRank + 1) / totalWallets) * 100 * Math.pow(10, 6),
     ) / Math.pow(10, 6)
   );
 }
@@ -178,37 +179,40 @@ async function getWalletsTierInfoFromAo() {
 
       return acc;
     },
-    {}
+    {},
   );
 
   return { walletsTierInfo, snapshotTimestamp, totalWallets };
 }
 
-export async function getWalletsTierInfo(addresses: string[]) {
-  const cachedWalletsTierInfo = await redis.get<CachedWalletsTierInfo>(
-    "wallets-tier-info"
-  );
+export async function getWalletsTierInfo(
+  addresses: string[],
+  bypassRefetch = false,
+) {
+  const cachedWalletsTierInfo =
+    await redis.get<CachedWalletsTierInfo>("wallets-tier-info");
 
   let walletsTierInfo: WalletsTierInfo = {};
   let snapshotTimestamp = 0;
   let totalWallets = 0;
 
-  if (!cachedWalletsTierInfo) {
+  if (cachedWalletsTierInfo) {
+    ({ walletsTierInfo, snapshotTimestamp, totalWallets } =
+      cachedWalletsTierInfo);
+  }
+
+  if (
+    !cachedWalletsTierInfo ||
+    (snapshotTimestamp + 24 * 60 * 60 * 1000 < Date.now() && !bypassRefetch)
+  ) {
     ({ walletsTierInfo, snapshotTimestamp, totalWallets } =
       await getWalletsTierInfoFromAo());
 
-    const cacheAge = Math.floor(
-      (snapshotTimestamp + 24 * 60 * 60 * 1000 - Date.now()) / 1000
-    ); // 24 hours from snapshot
-
-    await redis.set(
-      "wallets-tier-info",
-      { walletsTierInfo, snapshotTimestamp, totalWallets },
-      { ex: cacheAge }
-    );
-  } else {
-    ({ walletsTierInfo, snapshotTimestamp, totalWallets } =
-      cachedWalletsTierInfo);
+    await redis.set("wallets-tier-info", {
+      walletsTierInfo,
+      snapshotTimestamp,
+      totalWallets,
+    });
   }
 
   const result = addresses.reduce(
@@ -227,13 +231,16 @@ export async function getWalletsTierInfo(addresses: string[]) {
       }
       return acc;
     },
-    {}
+    {},
   );
 
   return result;
 }
 
-export async function getWalletTierInfo(address: string) {
-  const walletsTierInfo = await getWalletsTierInfo([address]);
+export async function getWalletTierInfo(
+  address: string,
+  bypassRefetch = false,
+) {
+  const walletsTierInfo = await getWalletsTierInfo([address], bypassRefetch);
   return walletsTierInfo[address];
 }

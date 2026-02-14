@@ -19,6 +19,10 @@
     {
       "path": "/api/cron/update-token-infos",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/update-tier-info",
+      "schedule": "15 16 * * *"
     }
   ]
 }

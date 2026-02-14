@@ -75,11 +75,11 @@ function anonymizeUUID(uuid: string): string {
  * @returns Valid access token
  */
 export async function getValidAccessToken(
-  apiKey: TransakApiKey
+  apiKey: TransakApiKey,
 ): Promise<string> {
   // Check if we have a cached token
   const cachedToken = await redis.get<TransakTokenData>(
-    `${TRANSAK_ACCESS_TOKEN_PREFIX}:${apiKey.id}`
+    `${TRANSAK_ACCESS_TOKEN_PREFIX}:${apiKey.id}`,
   );
 
   if (cachedToken) {
@@ -88,13 +88,13 @@ export async function getValidAccessToken(
     // If token is still valid with buffer time, return it
     if (timeUntilExpiry > TOKEN_BUFFER_TIME) {
       console.log(
-        `Using cached Transak token (expires in ${timeUntilExpiry / 1000}s)`
+        `Using cached Transak token (expires in ${timeUntilExpiry / 1000}s)`,
       );
       return cachedToken.accessToken;
     }
 
     console.log(
-      `Transak token expires in ${timeUntilExpiry / 1000}s, refreshing...`
+      `Transak token expires in ${timeUntilExpiry / 1000}s, refreshing...`,
     );
   } else {
     console.log("No cached Transak token found, refreshing...");
@@ -125,7 +125,7 @@ async function refreshAccessToken(apiKey: TransakApiKey): Promise<string> {
 
   if (!response.ok) {
     throw new Error(
-      `Failed to refresh Transak token: ${response.status} ${response.statusText}`
+      `Failed to refresh Transak token: ${response.status} ${response.statusText}`,
     );
   }
 
@@ -148,13 +148,13 @@ async function refreshAccessToken(apiKey: TransakApiKey): Promise<string> {
   await redis.set(
     `${TRANSAK_ACCESS_TOKEN_PREFIX}:${apiKey.id}`,
     JSON.stringify(tokenData),
-    { ex: expiryInSeconds }
+    { ex: expiryInSeconds },
   );
 
   console.log(
     `Transak token refreshed successfully (expires at ${new Date(
-      expiresAt
-    ).toISOString()})`
+      expiresAt,
+    ).toISOString()})`,
   );
 
   return data.accessToken;
@@ -167,7 +167,7 @@ async function refreshAccessToken(apiKey: TransakApiKey): Promise<string> {
  */
 export async function getOrder(
   partnerOrderId: string,
-  apiKey: TransakApiKey
+  apiKey: TransakApiKey,
 ): Promise<TransakOrder> {
   const accessToken = await getValidAccessToken(apiKey);
 
@@ -181,7 +181,7 @@ export async function getOrder(
 
   if (!response.ok) {
     throw new Error(
-      `Failed to get order status: ${response.status} ${response.statusText}`
+      `Failed to get order status: ${response.status} ${response.statusText}`,
     );
   }
 
@@ -189,7 +189,7 @@ export async function getOrder(
 }
 
 export async function getOrders(
-  apiKey: TransakApiKey
+  apiKey: TransakApiKey,
 ): Promise<TransakOrder[]> {
   const accessToken = await getValidAccessToken(apiKey);
 
@@ -206,7 +206,7 @@ export async function getOrders(
         accept: "application/json",
         "access-token": accessToken,
       },
-    }
+    },
   );
 
   const { data } = (await response.json()) as TransakOrderResponse;
@@ -229,7 +229,7 @@ export async function processOrder(order: TransakOrder, apiKey: TransakApiKey) {
     order.id,
     order.walletAddress,
     savings,
-    order.partnerFeeInUsd.toString()
+    order.partnerFeeInUsd.toString(),
   );
 }
 
@@ -240,7 +240,7 @@ export async function processOrdersWithApiKey(apiKey: TransakApiKey) {
 
   const orders = await getOrders(apiKey);
   const results = await Promise.allSettled(
-    orders.map((order) => processOrder(order, apiKey))
+    orders.map((order) => processOrder(order, apiKey)),
   );
 
   const failed = results.filter((result) => result.status === "rejected");
@@ -250,7 +250,7 @@ export async function processOrdersWithApiKey(apiKey: TransakApiKey) {
   console.log(
     `Processed ${totalCount} orders, ${failedCount} failed, ${
       totalCount - failedCount
-    } succeeded`
+    } succeeded`,
   );
 }
 
@@ -261,7 +261,7 @@ export async function processOrders() {
     } catch (error) {
       console.error(
         `Error processing orders with API key ${apiKey.id}:`,
-        error
+        error,
       );
     }
   }
@@ -271,7 +271,7 @@ async function updateFeeSavings(
   orderId: string,
   walletAddress: string,
   savings: string,
-  fees: string
+  fees: string,
 ) {
   try {
     const wallet = process.env.WALLET;
@@ -301,7 +301,7 @@ async function updateFeeSavings(
 }
 
 async function getTransakApiKey(address: string) {
-  const tierInfo = await getWalletTierInfo(address);
+  const tierInfo = await getWalletTierInfo(address, true);
   const isTopTier =
     tierInfo?.tier === TierTypes.PRIME || tierInfo?.tier === TierTypes.EDGE;
   const apiKey = TRANSAK_API_KEYS[isTopTier ? 1 : 0];
@@ -310,7 +310,7 @@ async function getTransakApiKey(address: string) {
 
 export async function createTransakWidgetUrl(
   widgetParams: Record<string, unknown>,
-  referrerDomain: string
+  referrerDomain: string,
 ) {
   const apiKey = await getTransakApiKey(widgetParams.walletAddress as string);
   const accessToken = await getValidAccessToken(apiKey);
@@ -332,7 +332,7 @@ export async function createTransakWidgetUrl(
 
   if (!response.ok) {
     throw new Error(
-      `Failed to create widget URL: ${response.status} ${response.statusText}`
+      `Failed to create widget URL: ${response.status} ${response.statusText}`,
     );
   }
 
